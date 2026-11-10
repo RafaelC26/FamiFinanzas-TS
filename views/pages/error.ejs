@@ -1,0 +1,7 @@
+<% if (usuario) { %><%- include('../partials/header') %><% } else { %><%- include('../partials/head') %><body class="publico"><main class="tarjeta-auth"><% } %>
+  <section class="panel centrado">
+    <h1 class="codigo-error"><%= status %></h1>
+    <p><%= mensaje %></p>
+    <a class="boton" href="<%= usuario ? '/dashboard' : '/login' %>">Volver al inicio</a>
+  </section>
+<% if (usuario) { %><%- include('../partials/footer') %><% } else { %></main></body></html><% } %>

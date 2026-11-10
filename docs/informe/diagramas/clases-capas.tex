@@ -1,0 +1,51 @@
+% Diagrama de clases de las capas de acceso a datos y servicios — FamiFinanzas TypeScript
+\begin{tikzpicture}[clases]
+\def\cA{0} \def\cB{4.3} \def\cC{8.6} \def\cD{12.9} \def\cE{17.2}
+
+% ---------------- Repositorios ----------------
+\clase{RB}{\cC,0}{{\tiny\estereotipo{abstract}}\\\textit{\textbf{RepositorioBase$<$TEntidad, TFila$>$}}}
+  {\# bd: BaseDatos \{readonly\}}
+  {\# \textit{mapear(fila: TFila): TEntidad}\\\# uno(sql, ...params): TEntidad | null\\\# varios(sql, ...params): TEntidad[]\\\# ejecutar(sql, ...params): ResultadoEscritura}
+\clase{RF}{\cA,-4.8}{\textbf{FamiliaRepository}}{\mbox{}}{+ crear(nombre): Familia\\+ buscarPorId(id): Familia | null}
+\clase{RU}{\cB,-4.8}{\textbf{UsuarioRepository}}{\mbox{}}{+ buscarPorEmail(email)\\+ contarAdminsActivos(fam): number\\+ actualizar(id, CambiosUsuario)}
+\clase{RC}{\cC,-4.8}{\textbf{CategoriaRepository}}{\mbox{}}{+ listar(fam, opciones): Categoria[]\\+ tieneMovimientos(id): boolean}
+\clase{RP}{\cD,-4.8}{\textbf{PresupuestoRepository}}{\mbox{}}{+ listarPorMes(fam, mes)\\+ buscarPorCategoriaMes(...)}
+\clase{RM}{\cE,-4.8}{{\tiny\estereotipo{abstract}}\\\textit{\textbf{MovimientoRepository$<$T extends Movimiento, TFila$>$}}}
+  {\# \textit{tabla: 'gastos' | 'ingresos'}\\\# \textit{alias: 'g' | 'i'}\\\# \textit{select: string}}
+  {\# filtrosAdicionales(c): ClausulaWhere\\+ listar(fam, filtro): ResultadoListado$<$T$>$\\+ listarTodos(fam, criterios): T[]\\+ buscar(id, fam): T | null}
+\clase{RG}{\cD,-10.6}{\textbf{GastoRepository}}{\# tabla = 'gastos'}{+ crear(fam, usr, EntradaGasto): Gasto\\+ totalCategoriaMes(...): number\\\# filtrosAdicionales(c) \estereotipo{override}}
+\clase{RI}{\cE,-10.6}{\textbf{IngresoRepository}}{\# tabla = 'ingresos'}{+ crear(fam, usr, EntradaIngreso): Ingreso}
+
+\def\busR{-4.15}
+\draw[thick] (\cA,-4.8) -- (\cA,\busR) -- (\cE,\busR) -- (\cE,-4.8);
+\foreach \x in {\cB,\cD} \draw[thick] (\x,-4.8) -- (\x,\busR);
+\draw[herencia] (\cC,-4.8) -- (RB.south);
+\draw[herencia] (RG.north) |- ($(RM.south)+(-0.5,-0.4)$) -- ($(RM.south)+(-0.5,0)$);
+\draw[herencia] (RI.north) -- (RM.south -| RI.north);
+
+% ---------------- Servicios ----------------
+\clase{SA}{\cA,-15.0}{\textbf{AuthService}}{- \#hashFicticio: string}{+ registrar(EntradaRegistro): Promise$<$Sesion$>$\\+ login(EntradaLogin): Promise$<$Sesion$>$\\+ verificarToken(t): PayloadToken}
+\clase{SC}{\cC,-15.0}{\textbf{CategoriaService}}{\mbox{}}{+ obtenerActiva(actor, id): Categoria\\+ eliminar(actor, id): ResultadoEliminacion}
+\clase{SP}{\cD,-15.0}{\textbf{PresupuestoService}}{- cfg: Configuracion}{+ listar(actor, mes)\\+ crear(actor, EntradaPresupuesto)\\+ alertaCategoria(...): Alerta | null}
+\clase{SM}{\cE,-15.0}{{\tiny\estereotipo{abstract}}\\\textit{\textbf{MovimientoService$<$T, R extends MovimientoRepository$>$}}}
+  {\# repositorio: R\\\# \textit{recurso: string}}
+  {+ listar(actor, filtro): Pagina$<$T$>$\\+ obtener(actor, id): T\\+ eliminar(actor, id): void\\\# verificarPropiedad(actor, m)}
+\clase{SU}{\cA,-20.4}{\textbf{UsuarioService}}{\mbox{}}{+ crear(actor, datos): Promise$<$Usuario$>$\\+ actualizar(actor, id, cambios)}
+\clase{SR}{\cB,-20.4}{\textbf{ReporteService}}{\mbox{}}{+ resumenMensual(actor, mes): ResumenMensual}
+\clase{SG}{\cD,-20.4}{\textbf{GastoService}}{\# recurso = 'Gasto'}{+ crear(actor, datos): ResultadoGasto\\+ actualizar(actor, id, datos)\\+ exportarCsv(actor, criterios): string}
+\clase{SI}{\cE,-20.4}{\textbf{IngresoService}}{\# recurso = 'Ingreso'}{+ crear(actor, datos): Ingreso\\+ actualizar(actor, id, datos)}
+
+% Herencia de servicios
+\draw[herencia] (SG.north) |- ($(SM.south)+(-0.5,-0.4)$) -- ($(SM.south)+(-0.5,0)$);
+\draw[herencia] (SI.north) -- (SM.south -| SI.north);
+
+% Dependencias inyectadas por el constructor (contenedor.ts)
+\coordinate (yCat) at (0,-15.8);
+\draw[asociacion] (SM.east) -- ++(0.6,0) |- node[rol, right, pos=0.25] {\#repositorio: R} (RM.east);
+\draw[asociacion] ($(SG.north)+(-1.0,0)$) -- node[rol, left] {presupuestos} ($(SP.south)+(-1.0,0)$);
+\draw[asociacion] (SP.west |- yCat) -- (SC.east |- yCat);
+\draw[asociacion] (SP.north) -- node[rol, right] {gastos} (RG.south -| SP.north);
+\draw[asociacion] (SC.north) -- node[rol, right, pos=0.4] {categorias} (RC.south -| SC.north);
+\draw[asociacion] (SA.north) -- node[rol, right, pos=0.4] {familias, usuarios} (RF.south -| SA.north);
+\draw[asociacion] (SU.north) -- node[rol, right] {auth} (SA.south -| SU.north);
+\end{tikzpicture}

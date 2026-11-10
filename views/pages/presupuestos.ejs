@@ -1,0 +1,46 @@
+<%- include('../partials/header') %>
+<div class="encabezado">
+  <h1>Presupuestos</h1>
+  <%- include('../partials/selector-mes') %>
+</div>
+
+<% if (usuario.rol === 'ADMIN') { const sinPresupuesto = categorias.filter(c => !presupuestos.some(p => p.categoria.id === c.id)); %>
+<section class="panel">
+  <h2>Definir presupuesto para <%= nombreMes(mes).toLowerCase() %></h2>
+  <% if (!sinPresupuesto.length) { %><p class="vacio">Todas las categorías activas ya tienen presupuesto este mes.</p><% } else { %>
+  <form method="post" action="/presupuestos" class="formulario" data-validar>
+    <input type="hidden" name="mes" value="<%= mes %>">
+    <div class="campos">
+      <label>Categoría <select name="categoriaId" required><% sinPresupuesto.forEach(c => { %><option value="<%= c.id %>"><%= c.nombre %></option><% }) %></select></label>
+      <label>Monto límite (COP) <input type="number" name="montoLimite" min="1" step="any" required placeholder="1200000" data-moneda></label>
+    </div>
+    <button class="boton" type="submit">Guardar presupuesto</button>
+  </form>
+  <% } %>
+</section>
+<% } %>
+
+<section class="panel">
+  <h2>Ejecución del presupuesto</h2>
+  <% if (!presupuestos.length) { %><p class="vacio">No hay presupuestos definidos para este mes.</p><% } %>
+  <ul class="barras">
+    <% presupuestos.forEach(p => { %>
+      <li>
+        <div class="barra-etiqueta"><span><i class="punto" style="--c: <%= p.categoria.color %>"></i><%= p.categoria.nombre %> <small class="chip estado-<%= p.estado %>"><%= ETIQUETA_ESTADO[p.estado] %></small></span>
+          <span><%= moneda(p.gastado) %> / <%= moneda(p.montoLimite) %></span></div>
+        <div class="barra-pista"><div class="barra-relleno estado-<%= p.estado %>" style="--ancho: <%= Math.min(100, p.porcentaje) %>%; --c: <%= p.categoria.color %>"></div></div>
+        <small><%= p.porcentaje %>% ejecutado · disponible <%= moneda(Math.max(0, p.montoLimite - p.gastado)) %></small>
+        <% if (usuario.rol === 'ADMIN') { %>
+          <div class="acciones-fila">
+            <form method="post" action="/presupuestos/<%= p.id %>/editar" class="en-linea">
+              <input type="number" name="montoLimite" min="1" step="any" required value="<%= p.montoLimite %>" aria-label="Nuevo monto para <%= p.categoria.nombre %>">
+              <button class="boton boton-sec" type="submit">Actualizar</button>
+            </form>
+            <form method="post" action="/presupuestos/<%= p.id %>/eliminar" data-confirmar="¿Eliminar el presupuesto de <%= p.categoria.nombre %>?"><button class="enlace" title="Eliminar">🗑️</button></form>
+          </div>
+        <% } %>
+      </li>
+    <% }) %>
+  </ul>
+</section>
+<%- include('../partials/footer') %>

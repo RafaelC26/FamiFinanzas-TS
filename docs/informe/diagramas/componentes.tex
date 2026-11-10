@@ -1,0 +1,75 @@
+% Diagrama de componentes — FamiFinanzas (versión TypeScript)
+\begin{tikzpicture}[
+  comp/.style={draw, thick, fill=white, minimum width=3.6cm, minimum height=1.05cm, align=center,
+               font=\scriptsize, inner sep=3pt},
+  paquete/.style={draw, thick, rounded corners=3pt, inner sep=9pt},
+  dep/.style={dashed, -{Stealth[length=2mm]}},
+  flujo/.style={thick, -{Stealth[length=2.2mm]}},
+  etq/.style={font=\tiny, fill=white, inner sep=1pt, align=center},
+]
+% ---------------- Navegador (cliente) ----------------
+\node[comp] (VHTML) at (2.2,10.2)  {Vistas HTML\\(plantillas EJS)};
+\node[comp] (MAIN)  at (6.4,10.2)  {main.js\\(de client/main.ts)};
+\node[comp] (UI)    at (10.6,10.2) {Componentes UI\\Validador, Simulador\\Gráfico, TablaOrdenable};
+\node[comp] (HTTP)  at (14.8,10.2) {ClienteHttp\\(fetch tipado)};
+\foreach \cc in {VHTML,MAIN,UI,HTTP} {\iconoComponente{\cc}}
+\begin{scope}[on background layer]
+  \node[paquete, fill=blue!4, fit=(VHTML)(MAIN)(UI)(HTTP),
+        label={[font=\small\bfseries, anchor=south west]north west:Navegador web (JavaScript generado por tsc en public/js)}] {};
+\end{scope}
+\draw[dep] (VHTML) -- node[etq, above=2pt] {\estereotipo{module}} (MAIN);
+\draw[dep] (MAIN) -- node[etq, above=2pt] {monta} (UI);
+\draw[dep] (UI) -- node[etq, above=2pt] {usa} (HTTP);
+
+% ---------------- Servidor ----------------
+\node[comp] (EXP) at (2.2,7.2)  {Express app\\(app.ts, Helmet)};
+\node[comp] (WEB) at (6.4,7.2)  {webRouter\\(web.ts + vistas.ts)};
+\node[comp] (MW)  at (10.6,7.2) {Middlewares\\(auth.ts, errores.ts)};
+\node[comp] (API) at (14.8,7.2) {apiRouter\\(routes/api/index.ts)};
+\node[comp] (DI)  at (2.2,5.0)  {Contenedor DI\\(contenedor.ts)};
+\node[comp] (SRV) at (8.5,5.0)  {Servicios\\(AuthService, GastoService...)};
+\node[comp] (DOM) at (14.8,3.2) {Dominio\\(Entidad, Movimiento...)};
+\node[comp] (REP) at (8.5,3.2)  {Repositorios\\(RepositorioBase$<$E,F$>$)};
+\node[comp] (BD)  at (8.5,1.4)  {BaseDatos\\(node:sqlite)};
+\foreach \cc in {EXP,WEB,MW,API,DI,SRV,DOM,REP,BD} {\iconoComponente{\cc}}
+\begin{scope}[on background layer]
+  \node[paquete, fill=teal!5, fit=(EXP)(WEB)(MW)(API)(DI)(SRV)(DOM)(REP)(BD),
+        label={[font=\small\bfseries, anchor=north west]south west:Servidor Node.js $\geq$ 22 (dist/)}] {};
+\end{scope}
+
+\draw[flujo] (EXP) -- (WEB);
+\draw[flujo] ($(EXP.north east)+(-0.4,0)$) |- (14.8,8.1) -- (API.north);
+\draw[dep] (WEB) -- node[etq, above=2pt] {usa} (MW);
+\draw[dep] (API) -- node[etq, above=2pt] {usa} (MW);
+\draw[dep] (WEB.south) -- (SRV.north west);
+\draw[dep] (API.south west) -- (SRV.north east);
+\draw[dep] (DI) -- node[etq, above=2pt] {\estereotipo{crea}} (SRV);
+\draw[dep] (SRV) -- (REP);
+\draw[dep] (REP) -- (BD);
+\draw[dep] (REP) -- node[etq, above=2pt] {instancia} (DOM);
+\draw[dep] (SRV.south east) -- (DOM.north west);
+
+% Base de datos (fuera del proceso)
+\node[cylinder, shape border rotate=90, aspect=0.25, draw, thick, fill=gray!8, minimum width=2.6cm, minimum height=1.3cm,
+      align=center, font=\scriptsize] (DB) at (8.5,-1.2) {famifinanzas.db\\(SQLite)};
+\draw[flujo] (BD) -- node[etq, right=2pt] {SQL parametrizado} (DB);
+
+% Conexiones navegador -> servidor
+\draw[flujo] (VHTML) -- node[etq, right=2pt] {HTTP: HTML y formularios\\(cookie JWT httpOnly)} (EXP);
+\draw[flujo] (HTTP.south) -- ++(0,-0.75) -| node[etq, pos=0.25, above] {GET /datos/presupuestos (JSON)} (WEB.north);
+
+% Interfaz provista por la API (notación lollipop) y cliente externo
+\coordinate (iApi) at (17.5,7.2);
+\draw[thick] (API.east) -- ($(iApi)+(-0.16,0)$);
+\draw[thick, fill=white] (iApi) circle (0.16);
+\node[etq, below=4pt] at (iApi) {REST /api/v1\\(Bearer JWT)};
+\node[comp, fill=gray!6] (EXT) at (19.6,5.0) {Cliente de la API\\(Swagger UI / Postman)};
+\iconoComponente{EXT}
+\draw[dep] (EXT.north) |- ($(iApi)+(0.2,0)$);
+
+% Artefacto con los contratos compartidos (solo tipos)
+\node[draw, thick, fill=orange!12, align=center, font=\scriptsize, minimum height=1.0cm] (CON) at (19.6,9.0)
+  {\estereotipo{artifact}\\contratos.d.ts};
+\draw[dep] (HTTP.east) -| node[etq, pos=0.2, above] {import type} (CON.north);
+\draw[dep] (API.north east) -- node[etq, sloped, below] {import type} (CON.south west);
+\end{tikzpicture}

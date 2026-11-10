@@ -1,0 +1,46 @@
+% Diagrama de clases: jerarquía de errores (backend) y componentes del frontend (client/)
+\begin{tikzpicture}[clases, clase/.append style={text width=2.5cm}]
+\def\xa{0} \def\xb{2.9} \def\xc{5.8} \def\xd{8.7} \def\xe{11.6} \def\xf{14.5}
+
+% ---------------- Errores (src/utils/errores.ts) ----------------
+\node[font=\small\bfseries, anchor=west] at (-1.4,1.0) {(a) Jerarquía de errores del backend};
+\simple{Error}{\xf,0}{\estereotipo{ECMAScript}\\\textbf{Error}}{+ name: string\\+ message: string}
+\clase{App}{\xc+1.45,0}{\textbf{AppError}}
+  {+ status: number\\+ codigo: string\\+ detalles?: DetalleErrorDTO[]}
+  {+ aRespuesta(): ErrorApiDTO}
+\simple{E1}{\xa,-3.2}{\textbf{ValidacionError}}{400 VALIDACION}
+\simple{E2}{\xb,-3.2}{\textbf{NoAutenticadoError}}{401 NO\_AUTENTICADO}
+\simple{E3}{\xc,-3.2}{\textbf{ProhibidoError}}{403 PROHIBIDO}
+\simple{E4}{\xd,-3.2}{\textbf{UsuarioInactivoError}}{403 USUARIO\_INACTIVO}
+\simple{E5}{\xe,-3.2}{\textbf{NoEncontradoError}}{404 NO\_ENCONTRADO}
+\simple{E6}{\xf,-3.2}{\textbf{ConflictoError}}{409 CONFLICTO}
+\draw[herencia] (App.east |- Error.west) -- (Error.west);
+\def\busE{-2.55}
+\draw[thick] (\xa,-3.2) -- (\xa,\busE) -- (\xf,\busE) -- (\xf,-3.2);
+\foreach \x in {\xb,\xc,\xd,\xe} \draw[thick] (\x,-3.2) -- (\x,\busE);
+\draw[herencia] ({\xc+1.45},\busE) -- (App.south);
+
+% ---------------- Frontend (client/) ----------------
+\node[font=\small\bfseries, anchor=west] at (-1.4,-5.6) {(b) Componentes del frontend TypeScript};
+\clase{Comp}{\xc+1.45,-6.4}{{\tiny\estereotipo{abstract}}\\\textit{\textbf{Componente$<$E extends HTMLElement$>$}}}
+  {\# raiz: E \{readonly\}}
+  {+ \textit{montar(): void}}
+\clase{Http}{\xf,-6.4}{\textbf{ClienteHttp}}
+  {- \#cache: Map$<$string, Promise$>$\\- base: string}
+  {+ obtener$<$T$>$(ruta, params): Promise$<$ Resultado$<$T$>$ $>$\\+ limpiarCache(): void}
+\simple{Res}{\xe-0.9,-6.4}{\estereotipo{type}\\\textbf{Resultado$<$T$>$}}{\{ok: true, datos: T\}\\| \{ok: false, status, error\}}
+
+\clase{C1}{\xa,-10.6}{\textbf{ValidadorFormulario}}{- \#mensajes: Map}{- validarCampo(c): boolean}
+\clase{C2}{\xb,-10.6}{\textbf{VistaPreviaMonto}}{- \#salida: HTMLElement}{- actualizar(): void}
+\clase{C3}{\xc,-10.6}{\textbf{AvisoFlash}}{+ \underline{DURACION\_MS}}{- ocultar(): void}
+\clase{C4}{\xd,-10.6}{\textbf{TablaOrdenable}}{\mbox{}}{- ordenar(th, i, tipo)}
+\clase{C5}{\xe,-10.6}{\textbf{GraficoCategorias}}{- \#sectores: Sector[]}{- dibujar(resaltado)\\- sectorEn(e): Sector | null}
+\clase{C6}{\xf,-10.6}{\textbf{SimuladorPresupuesto}}{- \#consulta: number}{- simular(): Promise$<$void$>$}
+
+\def\busC{-9.85}
+\draw[thick] (\xa,-10.6) -- (\xa,\busC) -- (\xf,\busC) -- (\xf,-10.6);
+\foreach \x in {\xb,\xc,\xd,\xe} \draw[thick] (\x,-10.6) -- (\x,\busC);
+\draw[herencia] ({\xc+1.45},\busC) -- (Comp.south);
+\draw[asociacion] ($(C6.north)+(0.9,0)$) -- node[rol, right] {usa} ($(Http.south)+(0.9,0)$);
+\draw[depende] (Http.west |- Res.east) -- node[rol, above] {devuelve} (Res.east);
+\end{tikzpicture}

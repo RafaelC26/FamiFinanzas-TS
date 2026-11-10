@@ -1,0 +1,14 @@
+<%- include('../partials/header') %>
+<h1>Editar ingreso #<%= ingreso.id %></h1>
+<section class="panel">
+  <form method="post" action="/ingresos/<%= ingreso.id %>/editar" class="formulario" data-validar>
+    <div class="campos">
+      <label>Monto (COP) <input type="number" name="monto" min="1" step="any" required value="<%= ingreso.monto %>" data-moneda></label>
+      <label>Fecha <input type="date" name="fecha" required value="<%= ingreso.fecha %>"></label>
+      <label>Fuente <input type="text" name="fuente" required minlength="2" maxlength="60" value="<%= ingreso.fuente %>"></label>
+      <label>Descripción <input type="text" name="descripcion" maxlength="200" value="<%= ingreso.descripcion %>"></label>
+    </div>
+    <div class="acciones"><button class="boton" type="submit">Guardar cambios</button><a class="boton boton-sec" href="/ingresos">Cancelar</a></div>
+  </form>
+</section>
+<%- include('../partials/footer') %>

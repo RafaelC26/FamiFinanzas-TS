@@ -1,0 +1,126 @@
+% ---------------------------------------------------------------
+% Preámbulo: paquetes, estilos de código y macros para los diagramas UML (TikZ)
+% ---------------------------------------------------------------
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[spanish,es-noshorthands,es-tabla,es-nodecimaldot]{babel}
+\usepackage{cite}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage[table]{xcolor}
+\usepackage{listings}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,shapes.geometric,shapes.multipart,fit,calc,backgrounds,babel}
+\usepackage{url}
+\usepackage[hidelinks]{hyperref}
+
+\renewcommand{\IEEEkeywordsname}{Palabras clave}
+\renewcommand{\lstlistingname}{Listado}
+\def\UrlBreaks{\do\/\do-\do.}
+
+% ---------- Código fuente ----------
+\definecolor{fondoCodigo}{RGB}{247,248,250}
+\definecolor{clave}{RGB}{0,92,170}
+\definecolor{cadena}{RGB}{163,21,21}
+\definecolor{comentario}{RGB}{0,128,0}
+\definecolor{tipo}{RGB}{38,127,153}
+
+\lstdefinelanguage{TypeScript}{
+  keywords={abstract,as,async,await,break,case,catch,class,const,constructor,continue,declare,default,do,else,enum,
+    export,extends,false,finally,for,from,function,get,if,implements,import,in,instanceof,interface,keyof,let,
+    namespace,new,null,of,override,private,protected,public,readonly,return,satisfies,set,static,super,switch,this,
+    throw,true,try,type,typeof,undefined,void,while},
+  morekeywords=[2]{string,number,boolean,unknown,never,any,Promise,Record,Partial,Omit,Pick,Readonly,ReadonlyArray,Map},
+  sensitive=true,
+  morecomment=[l]{//},
+  morecomment=[s]{/*}{*/},
+  morestring=[b]',
+  morestring=[b]",
+  morestring=[b]`,
+}
+\lstdefinelanguage{JavaScript}{
+  keywords={async,await,break,case,catch,class,const,constructor,continue,default,do,else,export,extends,false,
+    finally,for,from,function,get,if,import,in,instanceof,let,new,null,of,return,set,static,super,switch,this,throw,
+    true,try,typeof,undefined,void,while},
+  sensitive=true,
+  morecomment=[l]{//},
+  morecomment=[s]{/*}{*/},
+  morestring=[b]',
+  morestring=[b]",
+  morestring=[b]`,
+}
+\lstset{
+  basicstyle=\ttfamily\scriptsize,
+  keywordstyle=\color{clave}\bfseries,
+  keywordstyle=[2]\color{tipo},
+  stringstyle=\color{cadena},
+  commentstyle=\color{comentario}\itshape,
+  backgroundcolor=\color{fondoCodigo},
+  frame=single,
+  rulecolor=\color{gray!40},
+  framesep=2pt,
+  xleftmargin=3pt,
+  xrightmargin=3pt,
+  breaklines=true,
+  breakatwhitespace=true,
+  columns=fullflexible,
+  keepspaces=true,
+  showstringspaces=false,
+  tabsize=2,
+  captionpos=b,
+  inputencoding=utf8,
+  extendedchars=true,
+  literate={á}{{\'a}}1 {é}{{\'e}}1 {í}{{\'i}}1 {ó}{{\'o}}1 {ú}{{\'u}}1 {ñ}{{\~n}}1
+           {Á}{{\'A}}1 {É}{{\'E}}1 {Í}{{\'I}}1 {Ó}{{\'O}}1 {Ú}{{\'U}}1 {Ñ}{{\~N}}1
+           {¿}{{?`}}1 {¡}{{!`}}1,
+}
+
+% ---------- Macros UML (TikZ) ----------
+\newcommand{\estereotipo}[1]{\guillemotleft #1\guillemotright}
+
+% Actor (monigote). #1 nombre, #2 posición "x,y", #3 etiqueta.
+% Define las coordenadas #1-e (este), #1-o (oeste) y el nodo #1-etq (etiqueta).
+\newcommand{\actorUML}[3]{%
+  \begin{scope}[shift={(#2)}]
+    \draw[thick] (0,0.62) circle (0.17);
+    \draw[thick] (0,0.45) -- (0,-0.05);
+    \draw[thick] (-0.32,0.28) -- (0.32,0.28);
+    \draw[thick] (0,-0.05) -- (-0.24,-0.5);
+    \draw[thick] (0,-0.05) -- (0.24,-0.5);
+    \node[below, font=\small, inner sep=2pt] (#1-etq) at (0,-0.52) {#3};
+    \coordinate (#1-e) at (0.42,0.2);
+    \coordinate (#1-o) at (-0.42,0.2);
+  \end{scope}}
+
+% Icono de componente UML en la esquina superior derecha de un nodo
+\newcommand{\iconoComponente}[1]{%
+  \draw[fill=white] ($(#1.north east)+(-0.40,-0.10)$) rectangle ++(0.26,-0.30);
+  \draw[fill=white] ($(#1.north east)+(-0.46,-0.15)$) rectangle ++(0.12,-0.06);
+  \draw[fill=white] ($(#1.north east)+(-0.46,-0.27)$) rectangle ++(0.12,-0.06);}
+
+% Estilos de los diagramas de clases
+\tikzset{
+  clases/.style={
+    clase/.style={draw, thick, fill=white, anchor=north, rectangle split, rectangle split parts=3,
+      rectangle split part fill={teal!14,white,white}, text width=3.4cm, align=left,
+      font=\scriptsize, inner sep=2.5pt, execute at begin node={\setlength{\parindent}{0pt}}},
+    interfaz/.style={clase, rectangle split parts=2, rectangle split part fill={orange!14,white}},
+    simple/.style={clase, rectangle split parts=2, rectangle split part fill={teal!14,white}},
+    herencia/.style={thick, -{Triangle[open, length=2.6mm, width=2.6mm]}},
+    realiza/.style={dashed, -{Triangle[open, length=2.6mm, width=2.6mm]}},
+    asociacion/.style={-{Stealth[length=2mm]}},
+    depende/.style={dashed, -{Stealth[length=2mm]}},
+    composicion/.style={{Diamond[length=3mm, width=2mm]}-},
+    agregacion/.style={{Diamond[open, length=3mm, width=2mm]}-},
+    rol/.style={font=\tiny, inner sep=1pt},
+  },
+}
+% \clase{nombre}{x,y}{encabezado}{atributos}{métodos}
+\newcommand{\clase}[5]{\node[clase] (#1) at (#2)
+  {{\centering #3\par}\nodepart{two}{\raggedright #4\par}\nodepart{three}{\raggedright #5\par}};}
+% \interfaz / \simple {nombre}{x,y}{encabezado}{cuerpo}
+\newcommand{\interfaz}[4]{\node[interfaz] (#1) at (#2) {{\centering #3\par}\nodepart{two}{\raggedright #4\par}};}
+\newcommand{\simple}[4]{\node[simple] (#1) at (#2) {{\centering #3\par}\nodepart{two}{\raggedright #4\par}};}

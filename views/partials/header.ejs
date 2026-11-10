@@ -1,0 +1,18 @@
+<%- include('head') %>
+<body>
+<header class="barra">
+  <a class="marca" href="/dashboard"><img src="/img/logo.svg" alt="" width="28" height="28"> FamiFinanzas</a>
+  <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="menu" data-menu>☰<span class="sr-only">Menú</span></button>
+  <nav id="menu" class="menu">
+    <% const enlaces = [['/dashboard','Resumen'],['/gastos','Gastos'],['/ingresos','Ingresos'],['/presupuestos','Presupuestos']];
+       if (usuario.rol === 'ADMIN') enlaces.push(['/categorias','Categorías'],['/miembros','Miembros']); %>
+    <% enlaces.forEach(([href, texto]) => { %>
+      <a href="<%= href %>" <%- ruta.startsWith(href) ? 'aria-current="page"' : '' %>><%= texto %></a>
+    <% }) %>
+    <span class="menu-sep"></span>
+    <a href="/perfil" <%- ruta.startsWith('/perfil') ? 'aria-current="page"' : '' %>>👤 <%= usuario.nombre.split(' ')[0] %> <small class="chip"><%= usuario.rol %></small></a>
+    <form action="/logout" method="post"><button class="enlace" type="submit">Salir</button></form>
+  </nav>
+</header>
+<main class="contenedor">
+<%- include('flash') %>

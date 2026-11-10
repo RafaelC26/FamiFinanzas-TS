@@ -1,0 +1,30 @@
+<%- include('../partials/header') %>
+<h1>Categorías de gasto</h1>
+<section class="panel">
+  <h2>Nueva categoría</h2>
+  <form method="post" action="/categorias" class="formulario">
+    <div class="campos">
+      <label>Nombre <input type="text" name="nombre" required minlength="2" maxlength="40" placeholder="Mascotas"></label>
+      <label>Color <input type="color" name="color" value="#4f46e5"></label>
+    </div>
+    <button class="boton" type="submit">Crear categoría</button>
+  </form>
+</section>
+<section class="panel">
+  <h2>Categorías de la familia</h2>
+  <ul class="lista-editable">
+    <% categorias.forEach(c => { %>
+      <li class="<%= c.activo ? '' : 'inactivo' %>">
+        <form method="post" action="/categorias/<%= c.id %>/editar" class="en-linea">
+          <input type="color" name="color" value="<%= c.color %>" aria-label="Color de <%= c.nombre %>">
+          <input type="text" name="nombre" value="<%= c.nombre %>" required minlength="2" maxlength="40" aria-label="Nombre">
+          <button class="boton boton-sec" type="submit"><%= c.activo ? 'Guardar' : 'Reactivar' %></button>
+        </form>
+        <% if (c.activo) { %>
+          <form method="post" action="/categorias/<%= c.id %>/eliminar" data-confirmar="¿Eliminar la categoría <%= c.nombre %>?"><button class="enlace" title="Eliminar">🗑️</button></form>
+        <% } else { %><small class="chip">Inactiva</small><% } %>
+      </li>
+    <% }) %>
+  </ul>
+</section>
+<%- include('../partials/footer') %>

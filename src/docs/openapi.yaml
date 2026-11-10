@@ -1,0 +1,611 @@
+openapi: 3.0.3
+info:
+  title: FamiFinanzas API
+  version: 1.0.0
+  description: |
+    API REST para la gestión de gastos, ingresos y presupuesto familiar.
+
+    **Autenticación:** registre una familia en `POST /auth/registro` o inicie sesión en `POST /auth/login`,
+    copie el `token` de la respuesta y presione **Authorize** (formato: solo el token, sin "Bearer").
+    El token (JWT HS256) expira en 2 horas.
+
+    **Roles:** `ADMIN` gestiona miembros, categorías y presupuestos; `MIEMBRO` registra y consulta movimientos
+    y solo puede modificar los propios. Todos los datos están aislados por familia.
+
+    **Errores:** formato uniforme `{ "error": { "codigo", "mensaje", "detalles" } }`.
+servers:
+  - url: /api/v1
+    description: Servidor actual
+tags:
+  - name: Autenticación
+  - name: Miembros
+  - name: Categorías
+  - name: Gastos
+  - name: Ingresos
+  - name: Presupuestos
+  - name: Reportes
+  - name: Sistema
+security:
+  - bearerAuth: []
+
+paths:
+  /health:
+    get:
+      tags: [Sistema]
+      summary: Estado del servicio
+      security: []
+      responses:
+        '200':
+          description: Servicio disponible
+          content:
+            application/json:
+              schema: { type: object, properties: { estado: { type: string, example: OK }, hora: { type: string, format: date-time } } }
+
+  /auth/registro:
+    post:
+      tags: [Autenticación]
+      summary: Registrar una familia y su administrador (RF-01)
+      description: Crea la familia, el usuario ADMIN y 8 categorías iniciales. Devuelve un JWT.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RegistroEntrada' }
+      responses:
+        '201': { description: Familia registrada, content: { application/json: { schema: { $ref: '#/components/schemas/Sesion' } } } }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '409': { $ref: '#/components/responses/Conflicto' }
+
+  /auth/login:
+    post:
+      tags: [Autenticación]
+      summary: Iniciar sesión (RF-02)
+      description: Valida credenciales y emite un JWT. Limitado a 10 intentos fallidos cada 15 minutos por IP.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginEntrada' }
+      responses:
+        '200': { description: Autenticado, content: { application/json: { schema: { $ref: '#/components/schemas/Sesion' } } } }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/Prohibido' }
+        '429': { $ref: '#/components/responses/DemasiadasPeticiones' }
+
+  /auth/perfil:
+    get:
+      tags: [Autenticación]
+      summary: Consultar el perfil del usuario autenticado (RF-13)
+      responses:
+        '200':
+          description: Perfil
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Usuario'
+                  - type: object
+                    properties: { familia: { $ref: '#/components/schemas/Familia' } }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+
+  /auth/password:
+    put:
+      tags: [Autenticación]
+      summary: Cambiar la contraseña (RF-13)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [actual, nueva]
+              properties:
+                actual: { type: string, example: Clave123 }
+                nueva: { type: string, minLength: 8, example: NuevaClave456 }
+      responses:
+        '204': { description: Contraseña actualizada }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+
+  /usuarios:
+    get:
+      tags: [Miembros]
+      summary: Listar los miembros de la familia (RF-03)
+      responses:
+        '200': { description: Miembros, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Usuario' } } } } }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+    post:
+      tags: [Miembros]
+      summary: Registrar un miembro (solo ADMIN) (RF-03)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UsuarioEntrada' }
+      responses:
+        '201': { description: Miembro creado, content: { application/json: { schema: { $ref: '#/components/schemas/Usuario' } } } }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/Prohibido' }
+        '409': { $ref: '#/components/responses/Conflicto' }
+
+  /usuarios/{id}:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    get:
+      tags: [Miembros]
+      summary: Consultar un miembro
+      responses:
+        '200': { description: Miembro, content: { application/json: { schema: { $ref: '#/components/schemas/Usuario' } } } }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+    put:
+      tags: [Miembros]
+      summary: Actualizar nombre, rol o estado de un miembro (solo ADMIN)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nombre: { type: string, example: Laura Gómez }
+                rol: { $ref: '#/components/schemas/Rol' }
+                activo: { type: boolean }
+      responses:
+        '200': { description: Miembro actualizado, content: { application/json: { schema: { $ref: '#/components/schemas/Usuario' } } } }
+        '403': { $ref: '#/components/responses/Prohibido' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '409': { $ref: '#/components/responses/Conflicto' }
+    delete:
+      tags: [Miembros]
+      summary: Desactivar un miembro (solo ADMIN)
+      description: No se elimina físicamente para conservar el historial; el usuario ya no puede iniciar sesión.
+      responses:
+        '200': { description: Miembro desactivado, content: { application/json: { schema: { $ref: '#/components/schemas/Usuario' } } } }
+        '403': { $ref: '#/components/responses/Prohibido' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '409': { $ref: '#/components/responses/Conflicto' }
+
+  /categorias:
+    get:
+      tags: [Categorías]
+      summary: Listar categorías (RF-04)
+      parameters:
+        - { name: incluirInactivas, in: query, schema: { type: boolean, default: false } }
+      responses:
+        '200': { description: Categorías, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Categoria' } } } } }
+    post:
+      tags: [Categorías]
+      summary: Crear categoría (solo ADMIN)
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/CategoriaEntrada' } } }
+      responses:
+        '201': { description: Creada, content: { application/json: { schema: { $ref: '#/components/schemas/Categoria' } } } }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '403': { $ref: '#/components/responses/Prohibido' }
+        '409': { $ref: '#/components/responses/Conflicto' }
+
+  /categorias/{id}:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    get:
+      tags: [Categorías]
+      summary: Consultar categoría
+      responses:
+        '200': { description: Categoría, content: { application/json: { schema: { $ref: '#/components/schemas/Categoria' } } } }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+    put:
+      tags: [Categorías]
+      summary: Actualizar categoría (solo ADMIN)
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/CategoriaEntrada' } } }
+      responses:
+        '200': { description: Actualizada, content: { application/json: { schema: { $ref: '#/components/schemas/Categoria' } } } }
+        '403': { $ref: '#/components/responses/Prohibido' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '409': { $ref: '#/components/responses/Conflicto' }
+    delete:
+      tags: [Categorías]
+      summary: Eliminar categoría (solo ADMIN)
+      description: Si la categoría tiene gastos se desactiva; si no, se elimina.
+      responses:
+        '200':
+          description: Resultado
+          content:
+            application/json:
+              schema: { type: object, properties: { resultado: { type: string, enum: [ELIMINADA, DESACTIVADA] } } }
+        '403': { $ref: '#/components/responses/Prohibido' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+
+  /gastos:
+    get:
+      tags: [Gastos]
+      summary: Consultar gastos con filtros y paginación (RF-06)
+      parameters:
+        - $ref: '#/components/parameters/Desde'
+        - $ref: '#/components/parameters/Hasta'
+        - $ref: '#/components/parameters/CategoriaId'
+        - $ref: '#/components/parameters/UsuarioId'
+        - $ref: '#/components/parameters/Pagina'
+        - $ref: '#/components/parameters/Limite'
+      responses:
+        '200':
+          description: Página de gastos
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  datos: { type: array, items: { $ref: '#/components/schemas/Gasto' } }
+                  paginacion: { $ref: '#/components/schemas/Paginacion' }
+                  suma: { type: number, description: Suma de todos los gastos que cumplen el filtro }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+    post:
+      tags: [Gastos]
+      summary: Registrar un gasto (RF-05)
+      description: Si con este gasto la categoría llega al 80 % o supera su presupuesto del mes, la respuesta incluye `alerta` (RF-10).
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/GastoEntrada' } } }
+      responses:
+        '201': { description: Gasto registrado, content: { application/json: { schema: { $ref: '#/components/schemas/GastoConAlerta' } } } }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+
+  /gastos/exportar:
+    get:
+      tags: [Gastos]
+      summary: Exportar gastos a CSV (RF-12)
+      parameters:
+        - $ref: '#/components/parameters/Desde'
+        - $ref: '#/components/parameters/Hasta'
+        - $ref: '#/components/parameters/CategoriaId'
+        - $ref: '#/components/parameters/UsuarioId'
+      responses:
+        '200': { description: Archivo CSV (separador ;), content: { text/csv: { schema: { type: string } } } }
+
+  /gastos/{id}:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    get:
+      tags: [Gastos]
+      summary: Consultar un gasto
+      responses:
+        '200': { description: Gasto, content: { application/json: { schema: { $ref: '#/components/schemas/Gasto' } } } }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+    put:
+      tags: [Gastos]
+      summary: Editar un gasto (RF-07)
+      description: Un MIEMBRO solo puede editar los gastos que registró; el ADMIN puede editar cualquiera.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/GastoEntrada' } } }
+      responses:
+        '200': { description: Gasto actualizado, content: { application/json: { schema: { $ref: '#/components/schemas/GastoConAlerta' } } } }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '403': { $ref: '#/components/responses/Prohibido' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+    delete:
+      tags: [Gastos]
+      summary: Eliminar un gasto (RF-07)
+      responses:
+        '204': { description: Eliminado }
+        '403': { $ref: '#/components/responses/Prohibido' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+
+  /ingresos:
+    get:
+      tags: [Ingresos]
+      summary: Consultar ingresos (RF-08)
+      parameters:
+        - $ref: '#/components/parameters/Desde'
+        - $ref: '#/components/parameters/Hasta'
+        - $ref: '#/components/parameters/UsuarioId'
+        - $ref: '#/components/parameters/Pagina'
+        - $ref: '#/components/parameters/Limite'
+      responses:
+        '200':
+          description: Página de ingresos
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  datos: { type: array, items: { $ref: '#/components/schemas/Ingreso' } }
+                  paginacion: { $ref: '#/components/schemas/Paginacion' }
+                  suma: { type: number }
+    post:
+      tags: [Ingresos]
+      summary: Registrar un ingreso (RF-08)
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/IngresoEntrada' } } }
+      responses:
+        '201': { description: Ingreso registrado, content: { application/json: { schema: { $ref: '#/components/schemas/Ingreso' } } } }
+        '400': { $ref: '#/components/responses/Validacion' }
+
+  /ingresos/{id}:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    get:
+      tags: [Ingresos]
+      summary: Consultar un ingreso
+      responses:
+        '200': { description: Ingreso, content: { application/json: { schema: { $ref: '#/components/schemas/Ingreso' } } } }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+    put:
+      tags: [Ingresos]
+      summary: Editar un ingreso
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/IngresoEntrada' } } }
+      responses:
+        '200': { description: Actualizado, content: { application/json: { schema: { $ref: '#/components/schemas/Ingreso' } } } }
+        '403': { $ref: '#/components/responses/Prohibido' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+    delete:
+      tags: [Ingresos]
+      summary: Eliminar un ingreso
+      responses:
+        '204': { description: Eliminado }
+        '403': { $ref: '#/components/responses/Prohibido' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+
+  /presupuestos:
+    get:
+      tags: [Presupuestos]
+      summary: Listar presupuestos del mes con su ejecución (RF-09)
+      parameters: [{ $ref: '#/components/parameters/Mes' }]
+      responses:
+        '200': { description: Presupuestos, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/PresupuestoEjecucion' } } } } }
+    post:
+      tags: [Presupuestos]
+      summary: Definir presupuesto mensual de una categoría (solo ADMIN)
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/PresupuestoEntrada' } } }
+      responses:
+        '201': { description: Creado, content: { application/json: { schema: { $ref: '#/components/schemas/Presupuesto' } } } }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '403': { $ref: '#/components/responses/Prohibido' }
+        '409': { $ref: '#/components/responses/Conflicto' }
+
+  /presupuestos/{id}:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    put:
+      tags: [Presupuestos]
+      summary: Modificar el monto límite (solo ADMIN)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [montoLimite], properties: { montoLimite: { type: number, example: 1500000 } } }
+      responses:
+        '200': { description: Actualizado, content: { application/json: { schema: { $ref: '#/components/schemas/Presupuesto' } } } }
+        '403': { $ref: '#/components/responses/Prohibido' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+    delete:
+      tags: [Presupuestos]
+      summary: Eliminar presupuesto (solo ADMIN)
+      responses:
+        '204': { description: Eliminado }
+        '403': { $ref: '#/components/responses/Prohibido' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+
+  /reportes/resumen:
+    get:
+      tags: [Reportes]
+      summary: Resumen financiero mensual con alertas (RF-10, RF-11)
+      parameters: [{ $ref: '#/components/parameters/Mes' }]
+      responses:
+        '200': { description: Resumen, content: { application/json: { schema: { $ref: '#/components/schemas/Resumen' } } } }
+        '400': { $ref: '#/components/responses/Validacion' }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    Id: { name: id, in: path, required: true, schema: { type: integer, minimum: 1 } }
+    Desde: { name: desde, in: query, schema: { type: string, format: date }, example: '2026-10-01' }
+    Hasta: { name: hasta, in: query, schema: { type: string, format: date }, example: '2026-10-31' }
+    CategoriaId: { name: categoriaId, in: query, schema: { type: integer } }
+    UsuarioId: { name: usuarioId, in: query, schema: { type: integer } }
+    Pagina: { name: pagina, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+    Limite: { name: limite, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+    Mes: { name: mes, in: query, description: 'Mes AAAA-MM (por defecto, el actual)', schema: { type: string, pattern: '^\d{4}-(0[1-9]|1[0-2])$' }, example: '2026-10' }
+
+  responses:
+    Validacion: { description: Datos inválidos, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    NoAutenticado: { description: Token ausente, inválido o expirado, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    Prohibido: { description: El rol no tiene permiso para la operación, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    NoEncontrado: { description: El recurso no existe en la familia del usuario, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    Conflicto: { description: Conflicto con el estado actual (duplicado o regla de negocio), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    DemasiadasPeticiones: { description: Límite de intentos superado, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            codigo: { type: string, example: VALIDACION }
+            mensaje: { type: string, example: El monto debe ser mayor que cero }
+            detalles:
+              type: array
+              items: { type: object, properties: { campo: { type: string }, mensaje: { type: string } } }
+    Rol: { type: string, enum: [ADMIN, MIEMBRO] }
+    MetodoPago: { type: string, enum: [EFECTIVO, TARJETA_DEBITO, TARJETA_CREDITO, TRANSFERENCIA] }
+    Familia:
+      type: object
+      properties:
+        id: { type: integer }
+        nombre: { type: string, example: Familia Gómez }
+        moneda: { type: string, example: COP }
+        creadoEn: { type: string }
+    Usuario:
+      type: object
+      properties:
+        id: { type: integer, example: 1 }
+        familiaId: { type: integer, example: 1 }
+        nombre: { type: string, example: Carlos Gómez }
+        email: { type: string, format: email, example: carlos@correo.com }
+        rol: { $ref: '#/components/schemas/Rol' }
+        activo: { type: boolean }
+        creadoEn: { type: string }
+    RegistroEntrada:
+      type: object
+      required: [familia, nombre, email, password]
+      properties:
+        familia: { type: string, example: Familia Gómez }
+        nombre: { type: string, example: Carlos Gómez }
+        email: { type: string, format: email, example: carlos@correo.com }
+        password: { type: string, minLength: 8, description: Mínimo 8 caracteres con letras y números, example: Clave123 }
+    LoginEntrada:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email, example: admin@famifinanzas.co }
+        password: { type: string, example: Admin123 }
+    Sesion:
+      type: object
+      properties:
+        token: { type: string, description: JWT firmado con HS256 }
+        usuario: { $ref: '#/components/schemas/Usuario' }
+    UsuarioEntrada:
+      type: object
+      required: [nombre, email, password]
+      properties:
+        nombre: { type: string, example: Laura Gómez }
+        email: { type: string, format: email, example: laura@correo.com }
+        password: { type: string, example: Laura1234 }
+        rol: { $ref: '#/components/schemas/Rol' }
+    Categoria:
+      type: object
+      properties:
+        id: { type: integer }
+        nombre: { type: string, example: Alimentación }
+        color: { type: string, example: '#16a34a' }
+        activo: { type: boolean }
+    CategoriaEntrada:
+      type: object
+      required: [nombre]
+      properties:
+        nombre: { type: string, example: Mascotas }
+        color: { type: string, example: '#f97316' }
+    Gasto:
+      type: object
+      properties:
+        id: { type: integer }
+        monto: { type: number, example: 85000 }
+        fecha: { type: string, format: date, example: '2026-10-12' }
+        descripcion: { type: string, example: Mercado semanal }
+        metodoPago: { $ref: '#/components/schemas/MetodoPago' }
+        categoria: { type: object, properties: { id: { type: integer }, nombre: { type: string }, color: { type: string } } }
+        usuario: { type: object, properties: { id: { type: integer }, nombre: { type: string } } }
+        creadoEn: { type: string }
+    GastoEntrada:
+      type: object
+      required: [monto, fecha, categoriaId, metodoPago]
+      properties:
+        monto: { type: number, minimum: 0, exclusiveMinimum: true, example: 85000 }
+        fecha: { type: string, format: date, example: '2026-10-12' }
+        categoriaId: { type: integer, example: 1 }
+        descripcion: { type: string, maxLength: 200, example: Mercado semanal }
+        metodoPago: { $ref: '#/components/schemas/MetodoPago' }
+    Alerta:
+      type: object
+      nullable: true
+      properties:
+        categoria: { type: string }
+        mes: { type: string }
+        gastado: { type: number }
+        montoLimite: { type: number }
+        estado: { type: string, enum: [ALERTA, EXCEDIDO] }
+        porcentaje: { type: number, example: 85.5 }
+        mensaje: { type: string, example: El presupuesto de Alimentación va en 85.5% }
+    GastoConAlerta:
+      type: object
+      properties:
+        gasto: { $ref: '#/components/schemas/Gasto' }
+        alerta: { $ref: '#/components/schemas/Alerta' }
+    Ingreso:
+      type: object
+      properties:
+        id: { type: integer }
+        monto: { type: number, example: 3500000 }
+        fecha: { type: string, format: date }
+        fuente: { type: string, example: Salario }
+        descripcion: { type: string }
+        usuario: { type: object, properties: { id: { type: integer }, nombre: { type: string } } }
+    IngresoEntrada:
+      type: object
+      required: [monto, fecha, fuente]
+      properties:
+        monto: { type: number, example: 3500000 }
+        fecha: { type: string, format: date, example: '2026-10-01' }
+        fuente: { type: string, example: Salario }
+        descripcion: { type: string, example: Quincena }
+    Presupuesto:
+      type: object
+      properties:
+        id: { type: integer }
+        mes: { type: string, example: '2026-10' }
+        montoLimite: { type: number, example: 1200000 }
+        categoria: { type: object, properties: { id: { type: integer }, nombre: { type: string }, color: { type: string } } }
+    PresupuestoEjecucion:
+      allOf:
+        - $ref: '#/components/schemas/Presupuesto'
+        - type: object
+          properties:
+            gastado: { type: number }
+            porcentaje: { type: number }
+            estado: { type: string, enum: [OK, ALERTA, EXCEDIDO] }
+    PresupuestoEntrada:
+      type: object
+      required: [categoriaId, mes, montoLimite]
+      properties:
+        categoriaId: { type: integer, example: 1 }
+        mes: { type: string, example: '2026-10' }
+        montoLimite: { type: number, example: 1200000 }
+    Paginacion:
+      type: object
+      properties:
+        pagina: { type: integer }
+        limite: { type: integer }
+        total: { type: integer }
+        paginas: { type: integer }
+    Resumen:
+      type: object
+      properties:
+        mes: { type: string, example: '2026-10' }
+        totalIngresos: { type: number }
+        totalGastos: { type: number }
+        balance: { type: number }
+        cantidadGastos: { type: integer }
+        porCategoria:
+          type: array
+          items:
+            type: object
+            properties:
+              categoriaId: { type: integer }
+              nombre: { type: string }
+              color: { type: string }
+              total: { type: number }
+              presupuesto: { type: number, nullable: true }
+              participacion: { type: number, description: '% del gasto total del mes' }
+              porcentaje: { type: number, nullable: true, description: '% del presupuesto ejecutado' }
+              estado: { type: string, enum: [OK, ALERTA, EXCEDIDO, SIN_PRESUPUESTO] }
+        porMiembro:
+          type: array
+          items: { type: object, properties: { usuarioId: { type: integer }, nombre: { type: string }, total: { type: number } } }
+        alertas:
+          type: array
+          items: { type: object, properties: { categoria: { type: string }, estado: { type: string }, porcentaje: { type: number }, mensaje: { type: string } } }

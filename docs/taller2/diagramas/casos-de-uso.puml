@@ -1,0 +1,57 @@
+@startuml casos-de-uso
+!pragma layout smetana
+title FamiFinanzas — Diagrama de casos de uso
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam usecaseBackgroundColor #F0FDFA
+skinparam usecaseBorderColor #0F766E
+left to right direction
+
+actor "Visitante" as V
+actor "Miembro" as M
+actor "Administrador" as A
+M <|-- A
+
+rectangle "FamiFinanzas" {
+  usecase "RF-01 Registrar familia\ny administrador" as UC1
+  usecase "RF-02 Iniciar sesión" as UC2
+  usecase "Generar token JWT" as UCJ
+  usecase "RF-13 Gestionar perfil\ny contraseña" as UC13
+  usecase "RF-05 Registrar gasto" as UC5
+  usecase "RF-06 Consultar y filtrar gastos" as UC6
+  usecase "RF-07 Editar / eliminar gasto" as UC7
+  usecase "RF-08 Gestionar ingresos" as UC8
+  usecase "RF-10 Generar alerta\nde presupuesto" as UC10
+  usecase "RF-11 Consultar resumen mensual" as UC11
+  usecase "RF-12 Exportar gastos a CSV" as UC12
+  usecase "RF-03 Gestionar miembros" as UC3
+  usecase "RF-04 Gestionar categorías" as UC4
+  usecase "RF-09 Definir presupuestos\nmensuales" as UC9
+  usecase "RF-14 Verificar permisos\npor rol" as UC14
+}
+
+V --> UC1
+V --> UC2
+UC1 ..> UCJ : <<include>>
+UC2 ..> UCJ : <<include>>
+
+M --> UC13
+M --> UC5
+M --> UC6
+M --> UC7
+M --> UC8
+M --> UC11
+M --> UC12
+
+A --> UC3
+A --> UC4
+A --> UC9
+
+UC10 ..> UC5 : <<extend>>\n[gasto ≥ 80 % del presupuesto]
+UC11 ..> UC10 : <<include>>
+UC12 ..> UC6 : <<extend>>
+UC7 ..> UC14 : <<include>>
+UC3 ..> UC14 : <<include>>
+UC4 ..> UC14 : <<include>>
+UC9 ..> UC14 : <<include>>
+@enduml

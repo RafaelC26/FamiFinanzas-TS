@@ -1,0 +1,15 @@
+<%- include('../partials/head') %>
+<body class="publico">
+<main class="tarjeta-auth">
+  <div class="auth-marca"><img src="/img/logo.svg" alt="" width="48" height="48"><h1>FamiFinanzas</h1><p>El presupuesto de tu hogar, claro y compartido.</p></div>
+  <% if (aviso) { %><div class="alerta alerta-aviso" role="status"><%= aviso %></div><% } %>
+  <% if (error) { %><div class="alerta alerta-error" role="alert"><%= error %></div><% } %>
+  <form method="post" action="/login" class="formulario">
+    <label>Correo electrónico <input type="email" name="email" required autocomplete="email" autofocus value="<%= email %>"></label>
+    <label>Contraseña <input type="password" name="password" required autocomplete="current-password"></label>
+    <button class="boton" type="submit">Iniciar sesión</button>
+  </form>
+  <p class="centrado">¿Primera vez? <a href="/registro">Crea la cuenta de tu familia</a></p>
+</main>
+</body>
+</html>

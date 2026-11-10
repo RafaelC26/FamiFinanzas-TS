@@ -1,0 +1,71 @@
+% Diagrama de casos de uso — FamiFinanzas (versión TypeScript)
+\begin{tikzpicture}[
+  uc/.style={ellipse, draw=teal!60!black, fill=teal!6, thick, minimum width=3.7cm, minimum height=1.0cm,
+             align=center, font=\scriptsize, inner sep=0.5pt},
+  ucts/.style={uc, draw=orange!75!black, fill=orange!12},
+  asoc/.style={thick},
+  dep/.style={dashed, -{Stealth[length=2mm]}},
+  etq/.style={font=\tiny, fill=white, inner sep=1pt},
+]
+% Límite del sistema
+\draw[thick, rounded corners=4pt, fill=gray!3] (2.6,-2.0) rectangle (17.9,10.1);
+\node[anchor=north west, font=\small\bfseries] at (2.7,10.05) {Sistema FamiFinanzas (TypeScript)};
+
+% Actores
+\actorUML{V}{0.6,8.0}{Visitante}
+\actorUML{M}{0.6,3.2}{Miembro}
+\actorUML{A}{19.6,3.6}{Administrador}
+
+% Columna A: casos del miembro
+\node[uc] (UC1)  at (5.4,9.0)  {RF-01 Registrar familia\\y administrador};
+\node[uc] (UC2)  at (5.4,7.6)  {RF-02 Iniciar sesión};
+\node[uc] (UC13) at (5.4,6.2)  {RF-13 Gestionar perfil\\y contraseña};
+\node[uc] (UC5)  at (5.4,4.8)  {RF-05 Registrar gasto};
+\node[uc] (UC6)  at (5.4,3.4)  {RF-06 Consultar y\\filtrar gastos};
+\node[uc] (UC7)  at (5.4,2.0)  {RF-07 Editar / eliminar\\movimientos};
+\node[uc] (UC8)  at (5.4,0.6)  {RF-08 Gestionar ingresos};
+\node[uc] (UC11) at (5.4,-0.8) {RF-11 Consultar\\resumen mensual};
+
+% Columna B: casos incluidos / extendidos
+\node[uc]   (UCJ)  at (10.6,8.3)  {Generar token JWT};
+\node[ucts] (UCS)  at (10.6,6.6)  {Simular presupuesto\\(cliente TS)};
+\node[uc]   (UC10) at (10.6,4.8)  {RF-10 Generar alerta\\de presupuesto};
+\node[uc]   (UC12) at (10.6,3.2)  {RF-12 Exportar\\gastos a CSV};
+\node[uc]   (UC14) at (10.6,1.2)  {RF-14 Verificar\\permisos por rol};
+\node[ucts] (UCG)  at (10.6,-0.8) {Visualizar gráfico\\(cliente TS)};
+
+% Columna C: casos del administrador
+\node[uc] (UC3) at (15.6,6.0) {RF-03 Gestionar\\miembros};
+\node[uc] (UC4) at (15.6,3.9) {RF-04 Gestionar\\categorías};
+\node[uc] (UC9) at (15.6,1.8) {RF-09 Definir\\presupuestos};
+
+% Asociaciones actor - caso de uso
+\draw[asoc] (V-e) -- (UC1.west);
+\draw[asoc] (V-e) -- (UC2.west);
+\foreach \cu in {UC13,UC5,UC6,UC7,UC8,UC11} \draw[asoc] (M-e) -- (\cu.west);
+\foreach \cu in {UC3,UC4,UC9} \draw[asoc] (A-o) -- (\cu.east);
+
+% Generalización de actores: Administrador es un Miembro
+\draw[thick, -{Triangle[open, length=3mm, width=3mm]}]
+  (A-etq.south) -- (19.6,-2.6) -- (0.6,-2.6) -- (M-etq.south);
+
+% Include / extend
+\draw[dep] (UC1) -- node[etq, sloped, above] {\estereotipo{include}} (UCJ);
+\draw[dep] (UC2) -- node[etq, sloped, below] {\estereotipo{include}} (UCJ);
+\draw[dep] (UCS) -- node[etq, sloped, above] {\estereotipo{extend}} (UC5);
+\draw[dep] (UC10) -- node[etq, above, align=center] {\estereotipo{extend}\\{}[gasto $\geq$ 80\,\%]} (UC5);
+\draw[dep] (UC12) -- node[etq, above] {\estereotipo{extend}} (UC6);
+\draw[dep] (UC7) -- node[etq, sloped, above] {\estereotipo{include}} (UC14);
+\draw[dep] (UCG) -- node[etq, above] {\estereotipo{extend}} (UC11);
+\draw[dep] (UC11.north east) -- (8.0,-0.2) -- node[etq, sloped, above, pos=0.55] {\estereotipo{include}} (8.0,4.3) -- (UC10.south west);
+% Bus de "include" de los casos del administrador hacia RF-14
+\draw[thick, dashed] (UC3.west) -- (13.15,6.0) -- (13.15,1.2);
+\draw[thick, dashed] (UC4.west) -- (13.15,3.9);
+\draw[thick, dashed] (UC9.west) -- (13.15,1.8);
+\draw[dep] (13.15,1.2) -- (UC14.east);
+\node[etq, rotate=90] at (13.15,5.0) {\estereotipo{include}};
+
+% Leyenda
+\node[ucts, minimum width=1.0cm, minimum height=0.45cm] (ley) at (4.1,-2.9) {};
+\node[anchor=west, font=\scriptsize] at (ley.east) {Funcionalidad nueva del frontend en TypeScript};
+\end{tikzpicture}

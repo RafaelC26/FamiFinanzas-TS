@@ -1,0 +1,72 @@
+<%- include('../partials/header') %>
+<div class="encabezado">
+  <h1>Resumen del mes</h1>
+  <%- include('../partials/selector-mes') %>
+</div>
+
+<section class="kpis">
+  <article class="kpi"><span>Ingresos</span><strong class="positivo"><%= moneda(resumen.totalIngresos) %></strong></article>
+  <article class="kpi"><span>Gastos</span><strong class="negativo"><%= moneda(resumen.totalGastos) %></strong><small><%= resumen.cantidadGastos %> movimientos</small></article>
+  <article class="kpi"><span>Balance</span><strong class="<%= resumen.balance >= 0 ? 'positivo' : 'negativo' %>"><%= moneda(resumen.balance) %></strong></article>
+</section>
+
+<% if (resumen.alertas.length) { %>
+<section class="panel">
+  <h2>⚠ Alertas de presupuesto</h2>
+  <ul class="lista-alertas">
+    <% resumen.alertas.forEach(a => { %><li class="estado-<%= a.estado %>"><%= a.mensaje %></li><% }) %>
+  </ul>
+</section>
+<% } %>
+
+<div class="rejilla">
+  <section class="panel">
+    <h2>Registrar gasto rápido</h2>
+    <form method="post" action="/gastos" class="formulario" data-validar data-simulador>
+      <input type="hidden" name="volver" value="dashboard">
+      <%- include('../partials/form-gasto', { g: {} }) %>
+      <button class="boton" type="submit">Guardar gasto</button>
+    </form>
+  </section>
+
+  <section class="panel">
+    <h2>Gasto por categoría</h2>
+    <%# Datos para el gráfico (componente TS GraficoCategorias). Se escapa "<" para no cerrar el <script>. %>
+    <script type="application/json" id="datos-resumen"><%- JSON.stringify(resumen).replace(/</g, '\\u003c') %></script>
+    <canvas class="grafico-dona" data-grafico="datos-resumen" width="220" height="220"></canvas>
+    <% if (!resumen.porCategoria.length) { %>
+      <p class="vacio">Aún no hay gastos en <%= nombreMes(mes).toLowerCase() %>.</p>
+    <% } %>
+    <ul class="barras">
+      <% resumen.porCategoria.forEach(c => { const ancho = c.presupuesto ? Math.min(100, c.porcentaje) : c.participacion; %>
+        <li>
+          <div class="barra-etiqueta"><span><i class="punto" style="--c: <%= c.color %>"></i><%= c.nombre %></span>
+            <span><%= moneda(c.total) %><% if (c.presupuesto) { %> / <%= moneda(c.presupuesto) %><% } %></span></div>
+          <div class="barra-pista"><div class="barra-relleno estado-<%= c.estado %>" style="--ancho: <%= ancho %>%; --c: <%= c.color %>"></div></div>
+          <small><%= c.presupuesto ? `${c.porcentaje}% del presupuesto · ${ETIQUETA_ESTADO[c.estado]}` : `${c.participacion}% del gasto del mes` %></small>
+        </li>
+      <% }) %>
+    </ul>
+  </section>
+
+  <section class="panel">
+    <h2>Gasto por miembro</h2>
+    <table class="tabla">
+      <tbody>
+        <% resumen.porMiembro.forEach(m => { %><tr><td><%= m.nombre %></td><td class="num"><%= moneda(m.total) %></td></tr><% }) %>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="panel">
+    <h2>Últimos gastos</h2>
+    <% if (!ultimos.length) { %><p class="vacio">Sin gastos registrados este mes.</p><% } %>
+    <ul class="ultimos">
+      <% ultimos.forEach(g => { %>
+        <li><span><i class="punto" style="--c: <%= g.categoria.color %>"></i><%= g.descripcion || g.categoria.nombre %><small><%= g.fecha %> · <%= g.usuario.nombre %></small></span><strong><%= moneda(g.monto) %></strong></li>
+      <% }) %>
+    </ul>
+    <a href="/gastos">Ver todos →</a>
+  </section>
+</div>
+<%- include('../partials/footer') %>

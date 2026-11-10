@@ -1,0 +1,10 @@
+<%- include('../partials/header') %>
+<h1>Editar gasto #<%= gasto.id %></h1>
+<section class="panel">
+  <form method="post" action="/gastos/<%= gasto.id %>/editar" class="formulario" data-validar data-simulador
+        data-monto-original="<%= gasto.monto %>" data-categoria-original="<%= gasto.categoria.id %>" data-mes-original="<%= gasto.mes %>">
+    <%- include('../partials/form-gasto', { g: gasto }) %>
+    <div class="acciones"><button class="boton" type="submit">Guardar cambios</button><a class="boton boton-sec" href="/gastos">Cancelar</a></div>
+  </form>
+</section>
+<%- include('../partials/footer') %>

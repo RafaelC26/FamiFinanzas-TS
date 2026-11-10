@@ -1,0 +1,40 @@
+@startuml secuencia-jwt
+title FamiFinanzas — Autenticación y autorización con JWT
+skinparam shadowing false
+skinparam defaultFontName Arial
+autonumber
+
+actor Usuario
+participant "Cliente\n(navegador / Swagger)" as C
+participant "Express\n(rate-limit + Helmet)" as E
+participant "authService" as S
+participant "Middleware\nautenticarApi" as MW
+participant "gastoService" as G
+database "SQLite" as DB
+
+Usuario -> C : correo + contraseña
+C -> E : POST /api/v1/auth/login
+E -> S : login(email, password)
+S -> DB : SELECT usuario WHERE email = ?
+DB --> S : usuario + passwordHash
+S -> S : bcrypt.compare()
+alt credenciales válidas y usuario activo
+  S -> S : jwt.sign({sub, fam, rol}, secreto, HS256, 2h)
+  S --> C : 200 { token, usuario }
+else inválidas
+  S --> C : 401 NO_AUTENTICADO (cuenta para el límite de 10 intentos/15 min)
+end
+
+C -> E : GET /api/v1/gastos\nAuthorization: Bearer <JWT>
+E -> MW : verificar token
+MW -> MW : jwt.verify(firma, emisor, expiración)
+MW -> DB : ¿usuario existe y está activo?
+alt token válido
+  MW -> G : listar(actor{familiaId, rol}, filtros)
+  G -> DB : SELECT ... WHERE familia_id = ? (aislamiento)
+  DB --> G : filas
+  G --> C : 200 { datos, paginacion, suma }
+else token ausente, alterado o expirado
+  MW --> C : 401 NO_AUTENTICADO
+end
+@enduml

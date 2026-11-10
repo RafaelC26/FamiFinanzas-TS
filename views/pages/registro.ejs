@@ -1,0 +1,17 @@
+<%- include('../partials/head') %>
+<body class="publico">
+<main class="tarjeta-auth">
+  <div class="auth-marca"><img src="/img/logo.svg" alt="" width="48" height="48"><h1>Crear cuenta familiar</h1><p>Serás el administrador y podrás invitar a tu familia.</p></div>
+  <% if (error) { %><div class="alerta alerta-error" role="alert"><%= error %></div><% } %>
+  <form method="post" action="/registro" class="formulario">
+    <label>Nombre de la familia <input type="text" name="familia" required minlength="2" maxlength="80" value="<%= datos.familia ?? '' %>" placeholder="Familia Gómez"></label>
+    <label>Tu nombre <input type="text" name="nombre" required minlength="2" maxlength="80" autocomplete="name" value="<%= datos.nombre ?? '' %>"></label>
+    <label>Correo electrónico <input type="email" name="email" required autocomplete="email" value="<%= datos.email ?? '' %>"></label>
+    <label>Contraseña <input type="password" name="password" required minlength="8" autocomplete="new-password" pattern="(?=.*[A-Za-z])(?=.*\d).{8,}" title="Mínimo 8 caracteres, con letras y números">
+      <small>Mínimo 8 caracteres, con letras y números.</small></label>
+    <button class="boton" type="submit">Crear cuenta</button>
+  </form>
+  <p class="centrado">¿Ya tienes cuenta? <a href="/login">Inicia sesión</a></p>
+</main>
+</body>
+</html>

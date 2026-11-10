@@ -1,0 +1,97 @@
+% Diagrama de clases del dominio (src/dominio) — FamiFinanzas TypeScript
+\begin{tikzpicture}[clases]
+% Columnas
+\def\cA{0} \def\cB{4.3} \def\cC{8.6} \def\cD{12.9} \def\cE{17.2}
+
+% ---------- Fila 1: interfaces y objetos calculados ----------
+\interfaz{Actor}{\cA,0}{\estereotipo{interface}\\\textbf{Actor}}
+  {+ id: number \{readonly\}\\+ familiaId: number \{readonly\}\\+ esAdmin(): boolean}
+\interfaz{Serializable}{\cB,0}{\estereotipo{interface}\\\textbf{Serializable$<$TDTO$>$}}
+  {+ toJSON(): TDTO}
+\interfaz{Modificable}{\cC,0}{\estereotipo{interface}\\\textbf{Modificable}}
+  {+ puedeSerModificadoPor(actor: Actor): boolean}
+\clase{Alerta}{\cD,0}{\textbf{Alerta}}
+  {+ categoria: string\\- ejecucion: EjecucionPresupuesto\\- contexto?: ContextoAlerta}
+  {+ \textit{get} estado(): EstadoPresupuesto\\+ \textit{get} mensaje(): string\\+ toJSON(): AlertaDTO}
+\clase{Resumen}{\cE,0}{\textbf{ResumenMensual}}
+  {+ mes: string\\+ totalIngresos: number\\+ totalGastos: number\\+ porCategoria: TotalCategoriaDTO[]\\+ porMiembro: TotalMiembroDTO[]\\- \#alertas: Alerta[]}
+  {+ \textit{get} balance(): number\\+ toJSON(): ResumenMensualDTO}
+
+% ---------- Fila 2: raíz de la jerarquía ----------
+\clase{Entidad}{\cB,-2.6}{{\tiny\estereotipo{abstract}}\\\textit{\textbf{Entidad$<$TDTO$>$}}}
+  {+ id: number \{readonly\}}
+  {+ \textit{toJSON(): TDTO}\\+ esIgualA(otra: Entidad): boolean}
+
+% ---------- Fila 3: entidades ----------
+\clase{Usuario}{\cA,-5.6}{\textbf{Usuario}}
+  {+ familiaId: number\\+ nombre: string\\+ email: string\\+ rol: Rol\\+ activo: boolean\\+ creadoEn: string\\- \#passwordHash: string}
+  {+ esAdmin(): boolean\\+ \textit{get} hashContrasena(): string\\+ toJSON(): UsuarioDTO}
+\clase{Familia}{\cB,-5.6}{\textbf{Familia}}
+  {+ nombre: string\\+ moneda: string = "COP"\\+ creadoEn: string}
+  {+ toJSON(): FamiliaDTO}
+\clase{Movimiento}{\cC,-5.6}{{\tiny\estereotipo{abstract}}\\\textit{\textbf{Movimiento$<$TDTO$>$}}}
+  {+ monto: number \{$>$ 0\}\\+ fecha: string\\+ descripcion: string\\+ usuario: RefUsuarioDTO\\+ creadoEn: string}
+  {+ \textit{get tipo(): TipoMovimiento}\\+ \textit{get} mes(): string\\+ puedeSerModificadoPor(a): boolean\\\# camposBase(): MovimientoDTO}
+\clase{Categoria}{\cD,-5.6}{\textbf{Categoria}}
+  {+ \underline{COLOR\_POR\_DEFECTO}\\+ nombre: string\\+ color: string\\+ activo: boolean}
+  {+ \textit{get} referencia(): RefCategoriaDTO\\+ toJSON(): CategoriaDTO}
+\clase{Presupuesto}{\cE,-5.6}{\textbf{Presupuesto}}
+  {+ mes: string \estereotipo{AAAA-MM}\\+ montoLimite: number\\+ categoria: RefCategoriaDTO}
+  {+ evaluar(gastado, umbral): EjecucionPresupuesto\\+ conEjecucion(gastado, umbral)\\+ toJSON(): PresupuestoDTO}
+
+% ---------- Fila 4 ----------
+\interfaz{Rol}{\cA,-11.2}{\estereotipo{enumeration}\\\textbf{Rol}}{ADMIN\\MIEMBRO}
+\clase{Ingreso}{\cB,-11.2}{\textbf{Ingreso}}
+  {+ fuente: string}
+  {+ \textit{get} tipo(): 'INGRESO'\\+ toJSON(): IngresoDTO}
+\clase{Gasto}{\cC,-11.2}{\textbf{Gasto}}
+  {+ \underline{ENCABEZADO\_CSV}\\+ metodoPago: MetodoPago\\+ categoria: RefCategoriaDTO}
+  {+ \textit{get} tipo(): 'GASTO'\\+ aFilaCsv(): (string | number)[]\\+ toJSON(): GastoDTO}
+\interfaz{MetodoPago}{\cD,-11.2}{\estereotipo{enumeration}\\\textbf{MetodoPago}}{EFECTIVO\\TARJETA\_DEBITO\\TARJETA\_CREDITO\\TRANSFERENCIA}
+\clase{Ejecucion}{\cE,-11.2}{\textbf{EjecucionPresupuesto}}
+  {+ estado: EstadoPresupuesto\\+ porcentaje: number | null}
+  {- constructor() \{privado\}\\+ \underline{calcular(total, limite, umbral)}\\+ \textit{get} requiereAlerta(): boolean\\+ mensajePara(categoria): string}
+
+% ---------- Fila 5 ----------
+\interfaz{Exportable}{\cC,-15.0}{\estereotipo{interface}\\\textbf{ExportableCsv}}{+ aFilaCsv(): (string | number)[]}
+\interfaz{Estado}{\cE,-15.2}{\estereotipo{enumeration}\\\textbf{EstadoPresupuesto}}{OK\\ALERTA\\EXCEDIDO\\SIN\_PRESUPUESTO}
+
+% ---------- Coordenadas auxiliares ----------
+\coordinate (yComp) at (0,-6.7);
+\coordinate (yLim)  at (0,-6.5);
+\coordinate (yMP)   at (0,-12.0);
+\coordinate (yAl)   at (0,-0.9);
+
+% ---------- Relaciones ----------
+\draw[realiza] (Entidad.north) -- (Serializable.south);
+% Herencia de Entidad (bus)
+\def\bus{-4.75}
+\draw[thick] (\cA,-5.6) -- (\cA,\bus) -- (\cE,\bus) -- (\cE,-5.6);
+\foreach \x in {\cB,\cC,\cD} \draw[thick] (\x,-5.6) -- (\x,\bus);
+\draw[herencia] (\cB,\bus) -- (Entidad.south);
+% Realizaciones de interfaces
+\draw[realiza] ({\cA-0.9},-5.6) -- ($(Actor.south)+(-0.9,0)$);
+\draw[realiza] ({\cC+1.0},-5.6) -- ($(Modificable.south)+(1.0,0)$);
+% Gasto e Ingreso heredan de Movimiento
+\draw[herencia] (Gasto.north) -- (Movimiento.south);
+\draw[herencia] (Ingreso.north) |- ($(Movimiento.south)+(-0.6,-0.45)$) -- ($(Movimiento.south)+(-0.6,0)$);
+\draw[realiza] (Gasto.south) -- (Exportable.north);
+% Asociaciones
+\draw[asociacion] ($(Gasto.north)+(1.3,0)$) |- ({\cD-1.0},-10.55) -- node[rol, right, pos=0.5] {clasificado en \quad 1} ($(Categoria.south)+(-1.0,0)$);
+\draw[asociacion] (Gasto.east |- yMP) -- (MetodoPago.west |- yMP);
+\draw[asociacion] (Presupuesto.west |- yLim) -- node[rol, above] {limita} node[rol, pos=0.85, below] {1} (Categoria.east |- yLim);
+\draw[depende] (Presupuesto.south) -- node[rol, right] {\estereotipo{crea}} (Ejecucion.north);
+\draw[asociacion] (Ejecucion.south) -- (Estado.north);
+\draw[asociacion] (Usuario.south) -- (Rol.north);
+% Composición: la familia es dueña de sus usuarios y movimientos
+\draw[composicion] (Familia.west |- yComp) -- node[rol, above, pos=0.7] {1..*} (Usuario.east |- yComp);
+\draw[composicion] (Familia.east |- yComp) -- node[rol, above, pos=0.7] {0..*} (Movimiento.west |- yComp);
+% Resumen agrega alertas
+\draw[agregacion] (Resumen.west |- yAl) -- node[rol, above, pos=0.7] {0..*} (Alerta.east |- yAl);
+% Lollipops: Alerta y ResumenMensual también realizan Serializable
+\foreach \n in {Alerta,Resumen} {
+  \draw[thick] (\n.north) -- ++(0,0.35) coordinate (lp\n);
+  \draw[thick, fill=white] ($(lp\n)+(0,0.14)$) circle (0.14);
+  \node[rol, right] at ($(lp\n)+(0.15,0.14)$) {Serializable};
+}
+\end{tikzpicture}

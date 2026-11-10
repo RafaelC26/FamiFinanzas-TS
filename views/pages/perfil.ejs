@@ -1,0 +1,23 @@
+<%- include('../partials/header') %>
+<h1>Mi perfil</h1>
+<div class="rejilla">
+  <section class="panel">
+    <h2>Datos</h2>
+    <dl class="datos">
+      <dt>Nombre</dt><dd><%= perfil.nombre %></dd>
+      <dt>Correo</dt><dd><%= perfil.email %></dd>
+      <dt>Rol</dt><dd><%= perfil.rol === 'ADMIN' ? 'Administrador' : 'Miembro' %></dd>
+      <dt>Familia</dt><dd><%= perfil.familia.nombre %></dd>
+      <dt>Miembro desde</dt><dd><%= perfil.creadoEn.slice(0, 10) %></dd>
+    </dl>
+  </section>
+  <section class="panel">
+    <h2>Cambiar contraseña</h2>
+    <form method="post" action="/perfil/password" class="formulario">
+      <label>Contraseña actual <input type="password" name="actual" required autocomplete="current-password"></label>
+      <label>Nueva contraseña <input type="password" name="nueva" required minlength="8" autocomplete="new-password" pattern="(?=.*[A-Za-z])(?=.*\d).{8,}" title="Mínimo 8 caracteres, con letras y números"></label>
+      <button class="boton" type="submit">Actualizar contraseña</button>
+    </form>
+  </section>
+</div>
+<%- include('../partials/footer') %>

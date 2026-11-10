@@ -1,0 +1,43 @@
+<%- include('../partials/header') %>
+<h1>Miembros de la familia</h1>
+<section class="panel">
+  <h2>Agregar miembro</h2>
+  <form method="post" action="/miembros" class="formulario">
+    <div class="campos">
+      <label>Nombre <input type="text" name="nombre" required minlength="2" maxlength="80"></label>
+      <label>Correo <input type="email" name="email" required></label>
+      <label>Contraseña inicial <input type="password" name="password" required minlength="8" autocomplete="new-password" pattern="(?=.*[A-Za-z])(?=.*\d).{8,}" title="Mínimo 8 caracteres, con letras y números"></label>
+      <label>Rol <select name="rol"><option value="MIEMBRO">Miembro</option><option value="ADMIN">Administrador</option></select></label>
+    </div>
+    <button class="boton" type="submit">Agregar</button>
+  </form>
+</section>
+<section class="panel">
+  <div class="tabla-scroll">
+  <table class="tabla">
+    <thead><tr><th>Nombre</th><th>Correo</th><th>Rol</th><th>Estado</th><th></th></tr></thead>
+    <tbody>
+      <% miembros.forEach(m => { %>
+        <tr class="<%= m.activo ? '' : 'inactivo' %>">
+          <td><%= m.nombre %><%= m.id === usuario.id ? ' (tú)' : '' %></td>
+          <td><%= m.email %></td>
+          <td>
+            <form method="post" action="/miembros/<%= m.id %>/editar" class="en-linea">
+              <select name="rol" aria-label="Rol de <%= m.nombre %>"><option value="MIEMBRO" <%= m.rol === 'MIEMBRO' ? 'selected' : '' %>>Miembro</option><option value="ADMIN" <%= m.rol === 'ADMIN' ? 'selected' : '' %>>Administrador</option></select>
+              <button class="boton boton-sec" type="submit">Cambiar</button>
+            </form>
+          </td>
+          <td><span class="chip <%= m.activo ? 'estado-OK' : 'estado-EXCEDIDO' %>"><%= m.activo ? 'Activo' : 'Inactivo' %></span></td>
+          <td>
+            <form method="post" action="/miembros/<%= m.id %>/editar" <%- m.activo ? `data-confirmar="¿Desactivar a ${m.nombre}? No podrá iniciar sesión."` : '' %>>
+              <input type="hidden" name="activo" value="<%= !m.activo %>">
+              <button class="enlace" type="submit"><%= m.activo ? 'Desactivar' : 'Reactivar' %></button>
+            </form>
+          </td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+  </div>
+</section>
+<%- include('../partials/footer') %>

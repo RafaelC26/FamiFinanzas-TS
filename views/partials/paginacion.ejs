@@ -1,0 +1,7 @@
+<% const p = resultado.paginacion; if (p.paginas > 1) { %>
+<nav class="paginacion" aria-label="Paginación">
+  <% if (p.pagina > 1) { %><a class="boton boton-sec" href="?<%= qs %>&pagina=<%= p.pagina - 1 %>">‹ Anterior</a><% } %>
+  <span>Página <%= p.pagina %> de <%= p.paginas %></span>
+  <% if (p.pagina < p.paginas) { %><a class="boton boton-sec" href="?<%= qs %>&pagina=<%= p.pagina + 1 %>">Siguiente ›</a><% } %>
+</nav>
+<% } %>

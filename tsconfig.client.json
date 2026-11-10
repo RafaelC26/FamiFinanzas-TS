@@ -1,0 +1,13 @@
+{
+  // Frontend (navegador): client/*.ts se transpila a public/js/*.js (módulos ES nativos)
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "module": "ES2022",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": [],
+    "rootDir": "client",
+    "outDir": "public/js"
+  },
+  "include": ["client/**/*.ts", "src/shared/**/*.d.ts"]
+}

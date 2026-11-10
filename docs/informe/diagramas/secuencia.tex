@@ -1,0 +1,54 @@
+% Diagrama de secuencia — Registrar gasto con simulación de presupuesto en el cliente TS
+\begin{tikzpicture}[
+  part/.style={draw, thick, fill=teal!8, minimum height=0.9cm, minimum width=2.5cm, align=center, font=\scriptsize},
+  msj/.style={semithick, -{Stealth[length=2.4mm, width=1.8mm]}},
+  ret/.style={semithick, dashed, -{Stealth[length=2.4mm, width=1.8mm]}},
+  txt/.style={font=\scriptsize, above, inner sep=1.5pt, fill=white},
+]
+\def\fin{-17.3}
+% Participantes (x)
+\def\xU{0}  \def\xS{3.3} \def\xC{6.6} \def\xW{9.9} \def\xA{12.9} \def\xP{15.9} \def\xG{18.9} \def\xR{21.9}
+
+\actorUML{U}{\xU,0.3}{Usuario}
+\node[part, fill=orange!12] (S) at (\xS,0) {:SimuladorPresupuesto\\(navegador)};
+\node[part, fill=orange!12] (C) at (\xC,0) {:ClienteHttp\\(navegador)};
+\node[part] (W) at (\xW,0) {:webRouter};
+\node[part] (A) at (\xA,0) {autenticarWeb};
+\node[part] (P) at (\xP,0) {:PresupuestoService};
+\node[part] (G) at (\xG,0) {:GastoService};
+\node[part] (R) at (\xR,0) {:Repositorios\\+ SQLite};
+% Líneas de vida
+\foreach \x in {\xU,\xS,\xC,\xW,\xA,\xP,\xG,\xR} \draw[dashed, gray] (\x,-0.6) -- (\x,\fin);
+
+% --- Fase 1: simulación en el cliente (TypeScript en el navegador) ---
+\node[draw, fill=orange!8, font=\scriptsize\bfseries, anchor=west] at (-0.6,-1.0) {Fase 1: simulación (cliente TS)};
+\draw[msj] (\xU,-1.6) -- node[txt] {1: escribe monto, fecha y categoría} (\xS,-1.6);
+\draw[msj] (\xS,-2.3) -- node[txt] {2: obtener$<$EjecucionPresupuestoDTO[]$>$()} (\xC,-2.3);
+\draw[msj] (\xC,-3.0) -- node[txt] {3: GET /datos/presupuestos?mes (cookie ff\_token)} (\xW,-3.0);
+\draw[msj] (\xW,-3.7) -- node[txt] {4: verificar JWT} (\xA,-3.7);
+\draw[ret] (\xA,-4.4) -- node[txt] {5: Usuario (actor)} (\xW,-4.4);
+\draw[msj] (\xW,-5.1) -- node[txt] {6: listar(actor, mes)} (\xP,-5.1);
+\draw[msj] (\xP,-5.8) -- node[txt] {7: listarPorMes() / totalCategoriaMes()} (\xR,-5.8);
+\draw[ret] (\xR,-6.5) -- node[txt] {8: filas tipadas} (\xP,-6.5);
+\draw[ret] (\xP,-7.2) -- node[txt] {9: EjecucionPresupuestoDTO[]} (\xW,-7.2);
+\draw[ret] (\xW,-7.9) -- node[txt] {10: 200 application/json} (\xC,-7.9);
+\draw[ret] (\xC,-8.6) -- node[txt] {11: \{ok: true, datos\}} (\xS,-8.6);
+\draw[msj] (\xS,-9.1) -- ++(0.9,0) -- ++(0,-0.5) node[midway, right, font=\scriptsize] {12: proyectar(gastado, monto, límite)} -- (\xS,-9.6);
+\draw[ret] (\xS,-10.2) -- node[txt] {13: ``quedaría en 97,7\,\% (Alerta)''} (\xU,-10.2);
+
+% --- Fase 2: registro en el servidor ---
+\draw[gray, dash dot] (-0.6,-10.7) -- (22.8,-10.7);
+\node[draw, fill=teal!8, font=\scriptsize\bfseries, anchor=west] at (-0.6,-11.1) {Fase 2: registro (servidor TS)};
+\draw[msj] (\xU,-11.7) -- node[txt, pos=0.75] {14: POST /gastos (formulario)} (\xW,-11.7);
+\draw[msj] (\xW,-12.2) -- ++(0.9,0) -- ++(0,-0.5) node[midway, right, font=\scriptsize] {15: validar(esquemas.gasto) : EntradaGasto} -- (\xW,-12.7);
+\draw[msj] (\xW,-13.3) -- node[txt, pos=0.7] {16: crear(actor, datos)} (\xG,-13.3);
+\draw[msj] (\xG,-14.0) -- node[txt] {17: INSERT gasto} (\xR,-14.0);
+\draw[msj] (\xG,-14.7) -- node[txt] {18: alertaCategoria()} (\xP,-14.7);
+\draw[ret] (\xP,-15.4) -- node[txt] {19: Alerta | null} (\xG,-15.4);
+\draw[ret] (\xG,-16.1) -- node[txt, pos=0.7] {20: ResultadoGasto \{gasto, alerta\}} (\xW,-16.1);
+\draw[ret] (\xW,-16.8) -- node[txt, pos=0.3] {21: 302 /dashboard + mensaje flash} (\xU,-16.8);
+
+% Marco del diagrama (sd)
+\draw[thick] (-1.0,2.2) rectangle (23.2,\fin-0.3);
+\node[draw, thick, fill=white, anchor=north west, font=\scriptsize\bfseries] at (-1.0,2.2) {sd Registrar gasto con simulación de presupuesto};
+\end{tikzpicture}

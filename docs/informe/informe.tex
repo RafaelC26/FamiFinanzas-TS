@@ -1,0 +1,523 @@
+\documentclass[conference,a4paper]{IEEEtran}
+\IEEEoverridecommandlockouts
+\input{preambulo}
+
+\begin{document}
+
+\title{Migración a TypeScript de FamiFinanzas: aplicación web para la gestión del presupuesto familiar\thanks{Taller TypeScript --- Electiva II (60) 8108277, periodo académico II-2026. Universidad Pedagógica y Tecnológica de Colombia.}}
+
+\author{
+\IEEEauthorblockN{Samuel Salamanca}
+\IEEEauthorblockA{\textit{Escuela de Ingeniería de Sistemas y Computación}\\
+\textit{Universidad Pedagógica y Tecnológica de Colombia}\\
+Tunja, Colombia}
+\and
+\IEEEauthorblockN{Rafael Cristancho}
+\IEEEauthorblockA{\textit{Escuela de Ingeniería de Sistemas y Computación}\\
+\textit{Universidad Pedagógica y Tecnológica de Colombia}\\
+Tunja, Colombia}
+}
+
+\maketitle
+
+\begin{abstract}
+Este documento describe la migración a TypeScript de FamiFinanzas, la aplicación web de gestión de gastos, ingresos y presupuesto familiar desarrollada en el Taller~2 del primer corte con Node.js, Express, EJS, JWT y SQLite. La migración abarcó tres frentes: (i) la reestructuración del modelo en una jerarquía de clases con interfaces, clases abstractas, genéricos, enumeraciones y encapsulamiento; (ii) el reemplazo de todos los scripts JavaScript del backend por archivos \texttt{.ts} transpilados con \texttt{tsc} a JavaScript limpio en la carpeta \texttt{dist/}; y (iii) un nuevo frontend escrito en TypeScript que se transpila a módulos ES nativos (\texttt{public/js/*.js}) y agrega validación en vivo, simulación del presupuesto, un gráfico interactivo y tablas ordenables. Los contratos de datos (DTO) se comparten entre servidor y cliente mediante un archivo de declaraciones, de modo que un cambio en la API se detecta en tiempo de compilación en ambos lados. La API REST conserva su comportamiento: las 29 pruebas de integración originales pasan sin modificar su lógica, junto con 12 pruebas nuevas, y el rendimiento se mantiene por debajo de 10\,ms (p95) con 10\,000 gastos.
+\end{abstract}
+
+\begin{IEEEkeywords}
+TypeScript, migración de software, programación orientada a objetos, Node.js, Express, transpilación, UML.
+\end{IEEEkeywords}
+
+% =====================================================================
+\section{Introducción}
+JavaScript es el lenguaje de la web, pero su tipado dinámico traslada a tiempo de ejecución errores que podrían detectarse antes: propiedades mal escritas, parámetros con la forma equivocada o valores \texttt{undefined} que se propagan. Gao, Bird y Barr estimaron que un sistema de tipos estático como el de TypeScript habría detectado cerca del 15\,\% de los errores públicos analizados en proyectos JavaScript \cite{gao2017}. TypeScript es un superconjunto de JavaScript que agrega anotaciones de tipo opcionales, interfaces, genéricos y modificadores de acceso, y que se transpila a JavaScript estándar \cite{tshandbook,bierman2014}.
+
+En el Taller~2 se construyó \emph{FamiFinanzas}, una aplicación web para que una familia registre sus gastos e ingresos, defina presupuestos mensuales por categoría y reciba alertas al alcanzar el 80\,\% y el 100\,\% de cada presupuesto. El objetivo de este taller es migrar esa aplicación a TypeScript, aprovechando la migración para resaltar las ventajas del lenguaje: un modelo orientado a objetos explícito, backend tipado de extremo a extremo y vistas del cliente implementadas en TypeScript.
+
+El documento se organiza así: la Sección~\ref{sec:base} resume el sistema de partida; la Sección~\ref{sec:proceso} describe el proceso de migración con fragmentos comparativos de código JavaScript y TypeScript; la Sección~\ref{sec:uml} presenta los modelos UML; la Sección~\ref{sec:resultados} reporta la verificación y la Sección~\ref{sec:conclusiones} concluye.
+
+% =====================================================================
+\section{Sistema de partida (Taller 2)}\label{sec:base}
+FamiFinanzas expone una API REST versionada (\texttt{/api/v1}) documentada con OpenAPI/Swagger y protegida con JSON Web Tokens (JWT) \cite{rfc7519}, además de un front-end renderizado en el servidor con plantillas EJS que guarda el mismo JWT en una cookie \emph{httpOnly}. La persistencia usa el módulo \texttt{node:sqlite} de Node.js 22 \cite{nodesqlite} y la validación de entradas la biblioteca Zod \cite{zod}. La arquitectura sigue capas: rutas (controladores), servicios (reglas de negocio), repositorios (SQL parametrizado) y base de datos. La Tabla~\ref{tab:rf} resume los requisitos funcionales, que la migración conserva íntegramente.
+
+\begin{table}[!t]
+\centering
+\caption{Requisitos funcionales de FamiFinanzas}
+\label{tab:rf}
+\footnotesize
+\begin{tabularx}{\columnwidth}{@{}lX@{}}
+\toprule
+\textbf{ID} & \textbf{Requisito} \\
+\midrule
+RF-01 & Registrar familia, administrador y 8 categorías iniciales \\
+RF-02 & Iniciar sesión con correo y contraseña; emitir JWT (2\,h) \\
+RF-03 & Gestionar miembros de la familia (administrador) \\
+RF-04 & Gestionar categorías; desactivar si tienen gastos \\
+RF-05/06/07 & Registrar, filtrar/paginar y editar/eliminar gastos \\
+RF-08 & Gestionar ingresos \\
+RF-09 & Definir presupuestos mensuales por categoría \\
+RF-10 & Alertar al 80\,\% y al superar el presupuesto \\
+RF-11 & Resumen mensual por categoría y por miembro \\
+RF-12 & Exportar gastos filtrados a CSV \\
+RF-13 & Consultar perfil y cambiar contraseña \\
+RF-14 & Autorización por rol y aislamiento entre familias \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+El código JavaScript original tenía limitaciones que motivaron la migración: los repositorios y servicios eran objetos literales con lógica duplicada (por ejemplo, \texttt{gastoService} e \texttt{ingresoService} repetían \texttt{obtener} y \texttt{eliminar}); la clase abstracta \texttt{Movimiento} existía en el diagrama de clases pero no en el código; los estados (\texttt{'ADMIN'}, \texttt{'EXCEDIDO'}\ldots) eran cadenas sueltas; y el hash de la contraseña se ocultaba ``de memoria'' con una función \texttt{sinHash}. El frontend era un único archivo \texttt{app.js} de 25 líneas.
+
+% =====================================================================
+\section{Proceso de migración}\label{sec:proceso}
+\subsection{Estrategia}
+La migración se ejecutó de forma incremental y guiada por las pruebas existentes, en cinco fases:
+\begin{enumerate}
+\item \textbf{Configuración}: instalación de \texttt{typescript} y de las definiciones \texttt{@types/*}, y creación de dos proyectos de compilación (backend y cliente) que comparten un \texttt{tsconfig.base.json}.
+\item \textbf{Contratos}: definición de los DTO de la API en \texttt{src/shared/contratos.d.ts}.
+\item \textbf{Dominio}: creación de la jerarquía de clases (Sección~\ref{sec:jerarquia}).
+\item \textbf{Backend}: conversión de configuración, base de datos, repositorios, servicios, middlewares y rutas a \texttt{.ts}.
+\item \textbf{Frontend}: implementación de las vistas del cliente en TypeScript (\texttt{client/}).
+\end{enumerate}
+El código JavaScript original se conservó en \texttt{legacy-js/} como referencia para la comparación.
+
+\subsection{Configuración del compilador}
+El Listado~\ref{lst:tsconfig} muestra la configuración común. Se activó el modo \texttt{strict} (incluye \texttt{strictNullChecks} y \texttt{noImplicitAny}), \texttt{noImplicitOverride} para exigir la palabra \texttt{override} al sobrescribir métodos y \texttt{verbatimModuleSyntax}, que obliga a importar los tipos con \texttt{import type} para que el JavaScript generado no contenga importaciones innecesarias. El backend usa \texttt{module: NodeNext} y emite en \texttt{dist/}; el cliente usa \texttt{module: ES2022}, las bibliotecas \texttt{DOM} y emite en \texttt{public/js/} \cite{tsconfig}.
+
+\begin{lstlisting}[language=TypeScript, caption={tsconfig.base.json (opciones comunes) y diferencias por proyecto}, label={lst:tsconfig}]
+{ "compilerOptions": {
+    "target": "ES2022", "strict": true,
+    "noImplicitOverride": true, "noImplicitReturns": true,
+    "noUnusedLocals": true, "noUnusedParameters": true,
+    "isolatedModules": true, "verbatimModuleSyntax": true,
+    "sourceMap": true } }
+// tsconfig.json (backend):  module NodeNext, lib ES2022,
+//   rootDir ".", outDir "dist"   -> dist/src, dist/tests
+// tsconfig.client.json:     module ES2022, lib DOM,
+//   rootDir "client", outDir "public/js"
+\end{lstlisting}
+
+Los \emph{scripts} de \texttt{npm} quedaron así: \texttt{build} ejecuta ambos proyectos; \texttt{start} compila (\texttt{prestart}) y arranca \texttt{node dist/src/server.js}; \texttt{test} compila y ejecuta las pruebas transpiladas con el ejecutor nativo \texttt{node --test}; \texttt{typecheck} verifica tipos sin emitir archivos.
+
+\subsection{Jerarquía de clases y elementos de POO}\label{sec:jerarquia}
+Los modelos se reescribieron como clases (Fig.~\ref{fig:clases-dominio}). La raíz es la clase abstracta genérica \texttt{Entidad<TDTO>}, que fija el identificador inmutable y obliga a cada subclase a implementar \texttt{toJSON()} con la forma exacta de su DTO. \texttt{Movimiento<TDTO>}, que en JavaScript solo existía en el diagrama, es ahora una clase abstracta de la que heredan \texttt{Gasto} e \texttt{Ingreso}; contiene la regla de propiedad RF-07 (\texttt{puedeSerModificadoPor}) y el método abstracto \texttt{tipo}, resuelto por polimorfismo. Se definieron las interfaces \texttt{Serializable}, \texttt{Modificable}, \texttt{ExportableCsv} y \texttt{Actor}; las enumeraciones \texttt{Rol}, \texttt{MetodoPago} y \texttt{EstadoPresupuesto}; y el objeto de valor inmutable \texttt{EjecucionPresupuesto}, con constructor privado y método de fábrica estático, que reemplaza a la función suelta \texttt{estadoPresupuesto()}.
+
+El encapsulamiento se reforzó con los campos privados de ECMAScript \cite{ecma262}: el hash de la contraseña de \texttt{Usuario} es \texttt{\#passwordHash}, por lo que no aparece en \texttt{JSON.stringify}, en el operador de propagación ni en \texttt{Object.keys} (Listado~\ref{lst:usuario}). Los errores se modelaron como jerarquía (Fig.~\ref{fig:clases-err}a): cada subclase de \texttt{AppError} fija su código HTTP, lo que elimina códigos escritos a mano (Fig.~\ref{fig:cmp-errores}).
+
+\begin{lstlisting}[language=TypeScript, caption={Encapsulamiento con campo privado y tipos de enumeración}, label={lst:usuario}]
+export class Usuario extends Entidad<UsuarioDTO>
+                     implements Actor {
+  readonly rol: Rol;                // enum, no string
+  readonly #passwordHash: string | undefined;
+  get hashContrasena() { return this.#passwordHash; }
+  esAdmin(): boolean { return this.rol === Rol.ADMIN; }
+  override toJSON(): UsuarioDTO { /* sin el hash */ }
+}
+// Record<Enum, string> exige una etiqueta por cada valor:
+export const NOMBRES_METODO: Readonly<Record<MetodoPago,
+  string>> = { [MetodoPago.EFECTIVO]: 'Efectivo', ... };
+\end{lstlisting}
+
+\begin{figure*}[!t]
+\centering
+\begin{minipage}[t]{0.47\textwidth}
+\begin{lstlisting}[language=JavaScript, title={\textbf{Antes (JS)} --- src/utils/errores.js}]
+export class AppError extends Error {
+  constructor(status, codigo, mensaje, detalles) {
+    super(mensaje);
+    this.status = status;
+    this.codigo = codigo;
+    this.detalles = detalles;
+  }
+}
+export const noEncontrado = (recurso) =>
+  new AppError(404, 'NO_ENCONTRADO',
+               `${recurso} no encontrado`);
+export const conflicto = (mensaje) =>
+  new AppError(409, 'CONFLICTO', mensaje);
+// En otro servicio, el código se repetía a mano:
+throw new AppError(409, 'CONFLICTO', 'La familia...');
+\end{lstlisting}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.5\textwidth}
+\begin{lstlisting}[language=TypeScript, title={\textbf{Después (TS)} --- src/utils/errores.ts}]
+export class AppError extends Error {
+  constructor(
+    readonly status: number,
+    readonly codigo: string,
+    mensaje: string,
+    readonly detalles?: DetalleErrorDTO[],
+  ) {
+    super(mensaje);
+    this.name = new.target.name;
+  }
+  aRespuesta(): ErrorApiDTO { ... }
+}
+export class NoEncontradoError extends AppError {
+  constructor(recurso: string) {
+    super(404, 'NO_ENCONTRADO', `${recurso} no encontrado`);
+  }
+}
+export class ConflictoError extends AppError { ... }
+\end{lstlisting}
+\end{minipage}
+\caption{Snapshot comparativo de la migración de los errores: de funciones fábrica a una jerarquía de clases con propiedades de parámetro \texttt{readonly}.}
+\label{fig:cmp-errores}
+\end{figure*}
+
+\subsection{Backend: reemplazo de los scripts JavaScript}
+Los 25 archivos \texttt{.js} de \texttt{src/} se reemplazaron por archivos \texttt{.ts}. Los cambios más representativos fueron:
+
+\textbf{Repositorios genéricos.} Se creó la clase abstracta \texttt{RepositorioBase<TEntidad, TFila>} (patrón \emph{Repository} \cite{fowler2002}) que centraliza el acceso a \texttt{node:sqlite} y exige implementar \texttt{mapear(fila)}. Cada tabla declara la interfaz de su fila (\texttt{FilaGasto}, en \emph{snake\_case}) y el repositorio devuelve objetos de dominio. Gastos e ingresos comparten \texttt{MovimientoRepository<T, TFila>}, que implementa una sola vez los filtros por fecha y miembro, la paginación y el aislamiento por familia; \texttt{GastoRepository} solo agrega el filtro por categoría sobrescribiendo un método \emph{gancho} (Fig.~\ref{fig:cmp-repo}).
+
+\textbf{Servicios con herencia e inyección de dependencias.} \texttt{MovimientoService<T, R>} es abstracta y genérica; \texttt{GastoService} e \texttt{IngresoService} heredan \texttt{listar}, \texttt{obtener}, \texttt{eliminar} y \texttt{verificarPropiedad}. Todas las dependencias se reciben por el constructor y se conectan en una raíz de composición (\texttt{contenedor.ts}), lo que eliminó las importaciones circulares entre servicios de la versión JavaScript.
+
+\begin{figure*}[!t]
+\centering
+\begin{minipage}[t]{0.47\textwidth}
+\begin{lstlisting}[language=JavaScript, title={\textbf{Antes (JS)} --- gastoRepository.js}]
+const mapear = (g) => g && {
+  id: g.id, monto: g.monto, fecha: g.fecha,
+  metodoPago: g.metodo_pago,
+  categoria: { id: g.categoria_id, ... },
+  usuario: { id: g.usuario_id, ... },
+};
+function filtros(familiaId, { desde, hasta,
+                 categoriaId, usuarioId }) { ... }
+export const gastoRepository = {
+  buscar(id, familiaId) {
+    return mapear(db.prepare(`${SELECT} WHERE ...`)
+                    .get(id, familiaId));
+  },
+  listar(familiaId, f) { ... },   // duplicado en
+  eliminar(id, familiaId) { ... },// ingresoRepository
+};
+\end{lstlisting}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.5\textwidth}
+\begin{lstlisting}[language=TypeScript, title={\textbf{Después (TS)} --- GastoRepository.ts}]
+interface FilaGasto {
+  id: number; monto: number; fecha: string;
+  metodo_pago: MetodoPago; categoria_id: number; ...
+}
+export class GastoRepository
+    extends MovimientoRepository<Gasto, FilaGasto> {
+  protected override readonly tabla = 'gastos';
+  protected override readonly alias = 'g';
+  protected override mapear(g: FilaGasto): Gasto {
+    return new Gasto({ id: g.id, monto: g.monto, ... });
+  }
+  protected override filtrosAdicionales(
+      { categoriaId }: CriteriosMovimiento): ClausulaWhere {
+    return categoriaId ? { where: 'g.categoria_id = ?',
+      params: [categoriaId] } : { where: '', params: [] };
+  }
+  // buscar, listar, listarTodos y eliminar se heredan
+}
+\end{lstlisting}
+\end{minipage}
+\caption{Snapshot comparativo de un repositorio: de objeto literal sin tipos a clase que hereda de un repositorio genérico. La propiedad \texttt{tabla} solo admite \texttt{'gastos' | 'ingresos'} (tipo unión de literales).}
+\label{fig:cmp-repo}
+\end{figure*}
+
+\textbf{Validación y tipos inferidos.} Los esquemas Zod se mantuvieron, pero ahora reutilizan los \texttt{enum} del dominio (\texttt{z.nativeEnum}) y de ellos se derivan los tipos con \texttt{z.infer}; la función \texttt{validar} es genérica y su tipo de retorno se deduce del esquema (Listado~\ref{lst:zod}). Así, la validación en ejecución y el tipo estático nunca se desincronizan.
+
+\begin{lstlisting}[language=TypeScript, caption={Tipos derivados de la validación y validador genérico}, label={lst:zod}]
+export type EntradaGasto = z.infer<typeof esquemas.gasto>;
+// { monto: number; fecha: string; categoriaId: number;
+//   descripcion: string; metodoPago: MetodoPago }
+export function validar<E extends z.ZodTypeAny>(
+    esquema: E, datos: unknown): z.output<E> { ... }
+const datos = validar(esquemas.gasto, req.body);
+gastoService.crear(actor(req), datos); // EntradaGasto
+\end{lstlisting}
+
+\textbf{Express tipado.} Se amplió el tipo \texttt{Request} de Express mediante \emph{module augmentation} para declarar \texttt{req.usuario}, y la función \texttt{actor(req)} devuelve el usuario autenticado o lanza un 401, en lugar de propagar un \texttt{undefined} silencioso. Para el front-end EJS se definió la interfaz \texttt{Vistas}, que asocia cada plantilla con los datos que necesita; la función genérica \texttt{renderizar<K extends keyof Vistas>} hace que olvidar una variable de la vista sea un error de compilación (Listado~\ref{lst:vistas}). Las respuestas usan el operador \texttt{satisfies} para comprobar que cumplen el contrato sin perder el tipo inferido.
+
+\begin{lstlisting}[language=TypeScript, caption={Ampliación de Express y render tipado de vistas EJS}, label={lst:vistas}]
+declare global { namespace Express {
+  interface Request { usuario?: Usuario } } }
+export interface Vistas {
+  'pages/login': Base & { aviso: string | null;
+                          error: string | null; email: string };
+  'pages/gastos': Base & { resultado: Pagina<Gasto>;
+      filtro: FiltroMovimientos; qs: string; ... };
+}
+export function renderizar<K extends keyof Vistas>(
+  res: Response, vista: K, datos: Vistas[K], status = 200) {...}
+\end{lstlisting}
+
+Durante la conversión el compilador reportó, por ejemplo, que el arreglo construido para \texttt{URLSearchParams} era \texttt{string[][]} y no la tupla \texttt{[string, string][]} que exige la API del DOM; en JavaScript ese tipo de inconsistencias pasa desapercibido hasta que falla en producción:
+\begin{lstlisting}[basicstyle=\ttfamily\tiny]
+src/routes/web.ts(94,23): error TS2345: Argument of type 'string[][]'
+  is not assignable to parameter of type ... Iterable<[string, string]>
+\end{lstlisting}
+
+\subsection{Proceso de transpilación}
+El comando \texttt{npm run build} invoca a \texttt{tsc} dos veces. Para el backend, cada archivo \texttt{src/**/*.ts} produce un \texttt{dist/src/**/*.js} con su \emph{source map}; para el cliente, \texttt{client/**/*.ts} produce \texttt{public/js/**/*.js}. Al apuntar a ES2022, el JavaScript generado conserva las clases, los campos de clase y los campos privados nativos; solo se eliminan las anotaciones de tipo, las interfaces, los modificadores \texttt{private}/\texttt{readonly}/\texttt{override} y las importaciones de solo tipos. El resultado es código limpio y legible (Fig.~\ref{fig:transpilacion}). Los archivos \texttt{.d.ts} (contratos y ampliación de Express) no generan JavaScript.
+
+\begin{figure*}[!t]
+\centering
+\begin{minipage}[t]{0.5\textwidth}
+\begin{lstlisting}[language=TypeScript, title={\textbf{Fuente} --- src/dominio/Gasto.ts}]
+import { Movimiento, type DatosMovimiento,
+         type TipoMovimiento } from './Movimiento.js';
+import type { MetodoPago } from './enums.js';
+import type { ExportableCsv } from './interfaces.js';
+import type { GastoDTO, ReferenciaCategoriaDTO }
+  from '../shared/contratos.js';
+
+export class Gasto extends Movimiento<GastoDTO>
+                   implements ExportableCsv {
+  static readonly ENCABEZADO_CSV = ['ID', 'Fecha', ...] as const;
+  readonly metodoPago: MetodoPago;
+  readonly categoria: ReferenciaCategoriaDTO;
+  constructor(datos: DatosGasto) {
+    super(datos);
+    this.metodoPago = datos.metodoPago;
+    this.categoria = datos.categoria;
+  }
+  override get tipo(): TipoMovimiento { return 'GASTO'; }
+  override toJSON(): GastoDTO {
+    return { ...this.camposBase(),
+             metodoPago: this.metodoPago,
+             categoria: this.categoria };
+  }
+}
+\end{lstlisting}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.47\textwidth}
+\begin{lstlisting}[language=JavaScript, title={\textbf{Transpilado por tsc} --- dist/src/dominio/Gasto.js}]
+import { Movimiento } from './Movimiento.js';
+
+export class Gasto extends Movimiento {
+  static ENCABEZADO_CSV = ['ID', 'Fecha', ...];
+  metodoPago;
+  categoria;
+  constructor(datos) {
+    super(datos);
+    this.metodoPago = datos.metodoPago;
+    this.categoria = datos.categoria;
+  }
+  get tipo() {
+    return 'GASTO';
+  }
+  toJSON() {
+    return { ...this.camposBase(),
+             metodoPago: this.metodoPago,
+             categoria: this.categoria };
+  }
+}
+//# sourceMappingURL=Gasto.js.map
+\end{lstlisting}
+\end{minipage}
+\caption{Snapshot del proceso de transpilación: los tipos, interfaces e importaciones de solo tipos desaparecen; la clase y la herencia se conservan como JavaScript estándar (ES2022).}
+\label{fig:transpilacion}
+\end{figure*}
+
+\subsection{Frontend en TypeScript}
+El cliente se implementó en la carpeta \texttt{client/} y se transpila a módulos ES que el navegador carga con \texttt{<script type="module" src="/js/main.js">} \cite{mdnmodules}. Se mantuvo la mejora progresiva: las páginas EJS funcionan sin JavaScript y los componentes agregan comportamiento. La base es la clase abstracta genérica \texttt{Componente<E extends HTMLElement>} (Fig.~\ref{fig:clases-err}b), cuyo parámetro de tipo fija el elemento raíz (un \texttt{HTMLFormElement} para formularios, un \texttt{HTMLCanvasElement} para el gráfico). Los componentes implementados son:
+\begin{itemize}
+\item \textbf{ValidadorFormulario}: reglas tipadas equivalentes a los esquemas Zod del servidor, con mensajes por campo y atributo \texttt{aria-invalid}.
+\item \textbf{SimuladorPresupuesto}: consulta \texttt{GET /datos/presupuestos} y anticipa, antes de guardar, cómo quedará el presupuesto de la categoría (RF-10 en el cliente).
+\item \textbf{GraficoCategorias}: gráfico de dona en \texttt{<canvas>} con resaltado al pasar el puntero, alimentado con el \texttt{ResumenMensualDTO} que el servidor incrusta como JSON.
+\item \textbf{TablaOrdenable}, \textbf{VistaPreviaMonto}, \textbf{AvisoFlash}, \textbf{ConfirmacionAccion}, \textbf{MenuMovil} y \textbf{EnvioUnico}.
+\end{itemize}
+
+La comunicación con el servidor se encapsuló en \texttt{ClienteHttp}, cuyo método genérico \texttt{obtener<T>()} devuelve una \emph{unión discriminada} \texttt{Resultado<T>}: el compilador impide usar \texttt{datos} sin comprobar antes \texttt{ok} (Fig.~\ref{fig:cmp-front}). Los nuevos endpoints \texttt{/datos/*} usan la misma cookie \emph{httpOnly} de la sesión, por lo que el JavaScript del navegador nunca manipula el JWT. Los tipos de respuesta provienen de \texttt{contratos.d.ts}, el mismo archivo que usa el backend.
+
+\begin{figure*}[!t]
+\centering
+\begin{minipage}[t]{0.42\textwidth}
+\begin{lstlisting}[language=JavaScript, title={\textbf{Antes (JS)} --- public/js/app.js (completo)}]
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('form[data-confirmar]')
+    .forEach((form) => {
+      form.addEventListener('submit', (e) => {
+        if (!window.confirm(form.dataset.confirmar))
+          e.preventDefault();
+      });
+    });
+  const boton = document.querySelector('[data-menu]');
+  const menu = document.getElementById('menu');
+  boton?.addEventListener('click', () => {
+    const abierto = menu.classList.toggle('abierto');
+    boton.setAttribute('aria-expanded',
+                       String(abierto));
+  });
+  // ... evita doble envío de formularios
+});
+\end{lstlisting}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.55\textwidth}
+\begin{lstlisting}[language=TypeScript, title={\textbf{Después (TS)} --- client/nucleo/ClienteHttp.ts y SimuladorPresupuesto.ts}]
+export type Resultado<T> =
+  | { ok: true; datos: T }
+  | { ok: false; status: number; error: ErrorApiDTO['error'] };
+
+export class ClienteHttp {
+  readonly #cache = new Map<string, Promise<Resultado<unknown>>>();
+  obtener<T>(ruta: string, parametros: Record<string, string> = {}
+            ): Promise<Resultado<T>> { ... }
+}
+// En SimuladorPresupuesto (extends Componente<HTMLFormElement>):
+const r = await clienteHttp
+  .obtener<EjecucionPresupuestoDTO[]>('/datos/presupuestos', { mes });
+if (!r.ok) return this.ocultar();     // obligatorio antes de usar datos
+const p = r.datos.find((x) => x.categoria.id === categoriaId);
+const proy = proyectar(p.gastado, monto, p.montoLimite);
+this.mostrar(`... quedaría en ${proy.porcentaje}% ...`, proy.estado);
+\end{lstlisting}
+\end{minipage}
+\caption{Snapshot comparativo del frontend: de un script sin tipos a componentes TypeScript que consumen la API con contratos compartidos y resultados tipados.}
+\label{fig:cmp-front}
+\end{figure*}
+
+La Fig.~\ref{fig:pantalla-dashboard} muestra el resumen mensual con el gráfico y el simulador en funcionamiento, y la Fig.~\ref{fig:pantalla-gastos} la validación en vivo y la tabla ordenada por monto.
+
+\begin{figure}[!t]
+\centering
+\includegraphics[width=\columnwidth]{figuras/dashboard-ts.jpg}
+\caption{Resumen del mes: gráfico \texttt{GraficoCategorias} y simulación del presupuesto de Transporte antes de guardar un gasto (97,7\,\%, Alerta).}
+\label{fig:pantalla-dashboard}
+\end{figure}
+
+\begin{figure}[!t]
+\centering
+\includegraphics[width=\columnwidth]{figuras/gastos-ts.jpg}
+\caption{Gastos: \texttt{ValidadorFormulario} rechaza un monto de 0 y \texttt{TablaOrdenable} ordena por monto descendente.}
+\label{fig:pantalla-gastos}
+\end{figure}
+
+% =====================================================================
+\section{Modelado UML}\label{sec:uml}
+Los diagramas siguen la notación UML 2.5.1 \cite{uml251} y reflejan el código TypeScript implementado.
+
+\subsection{Diagrama de casos de uso}
+La Fig.~\ref{fig:casos-uso} presenta los actores \emph{Visitante}, \emph{Miembro} y \emph{Administrador} (este último especializa al Miembro) y los casos de uso RF-01 a RF-14. En naranja se destacan los dos casos nuevos que aporta el frontend TypeScript: la simulación del presupuesto, que extiende a \emph{Registrar gasto}, y la visualización del gráfico, que extiende a \emph{Consultar resumen mensual}.
+
+\begin{figure*}[!t]
+\centering
+\resizebox{0.95\textwidth}{!}{\input{diagramas/casos-uso}}
+\caption{Diagrama de casos de uso de FamiFinanzas (versión TypeScript).}
+\label{fig:casos-uso}
+\end{figure*}
+
+\subsection{Diagrama de componentes}
+La Fig.~\ref{fig:componentes} muestra los componentes en tiempo de ejecución. En el navegador se ejecuta el JavaScript generado desde \texttt{client/}; en el servidor, el generado en \texttt{dist/}. El artefacto \texttt{contratos.d.ts} solo existe en tiempo de compilación y es importado con \texttt{import type} por el cliente y por el servidor. La API REST se ofrece como interfaz a clientes externos (Swagger UI, Postman) con autenticación \emph{Bearer}.
+
+\begin{figure*}[!t]
+\centering
+\resizebox{\textwidth}{!}{\input{diagramas/componentes}}
+\caption{Diagrama de componentes: cliente TypeScript, servidor TypeScript por capas y contratos compartidos.}
+\label{fig:componentes}
+\end{figure*}
+
+\subsection{Diagrama de secuencia}
+La Fig.~\ref{fig:secuencia} describe el escenario principal del sistema migrado: registrar un gasto. En la primera fase el componente \texttt{SimuladorPresupuesto} consulta al servidor, autenticado con la cookie, y proyecta el porcentaje de ejecución en el navegador; en la segunda, el formulario se envía, el servidor valida con el esquema tipado, registra el gasto y calcula la alerta RF-10 con la clase \texttt{EjecucionPresupuesto}.
+
+\begin{figure*}[!t]
+\centering
+\resizebox{\textwidth}{!}{\input{diagramas/secuencia}}
+\caption{Diagrama de secuencia: registrar un gasto con simulación del presupuesto en el cliente TypeScript.}
+\label{fig:secuencia}
+\end{figure*}
+
+\subsection{Diagramas de clases}
+La Fig.~\ref{fig:clases-dominio} presenta el modelo de dominio: herencia desde \texttt{Entidad<TDTO>}, la abstracción \texttt{Movimiento}, la realización de interfaces, la composición \texttt{Familia}--\texttt{Usuario}/\texttt{Movimiento} y las enumeraciones. La Fig.~\ref{fig:clases-capas} muestra las capas de acceso a datos y de servicios, donde los genéricos permiten reutilizar la lógica común; y la Fig.~\ref{fig:clases-err} la jerarquía de errores y los componentes del cliente.
+
+\begin{figure*}[p]
+\centering
+\resizebox{\textwidth}{!}{\input{diagramas/clases-dominio}}
+\caption{Diagrama de clases del dominio (\texttt{src/dominio}). Los nombres en cursiva son abstractos; \# indica miembro protegido o campo privado de ECMAScript.}
+\label{fig:clases-dominio}
+\end{figure*}
+
+\begin{figure*}[p]
+\centering
+\resizebox{\textwidth}{!}{\input{diagramas/clases-capas}}
+\caption{Diagrama de clases de las capas de repositorios y servicios: genéricos, clases abstractas y dependencias inyectadas por constructor.}
+\label{fig:clases-capas}
+\end{figure*}
+
+\begin{figure*}[!t]
+\centering
+\resizebox{\textwidth}{!}{\input{diagramas/clases-errores-cliente}}
+\caption{Diagrama de clases: (a) jerarquía de errores del backend; (b) componentes del frontend TypeScript (además: \texttt{ConfirmacionAccion}, \texttt{MenuMovil} y \texttt{EnvioUnico}).}
+\label{fig:clases-err}
+\end{figure*}
+
+% =====================================================================
+\section{Resultados y verificación}\label{sec:resultados}
+\subsection{Pruebas automatizadas}
+Las pruebas se migraron a TypeScript y se ejecutan sobre el código transpilado. Las 26 pruebas de integración de la API y las 3 de las vistas web del Taller~2 pasan sin cambios en sus aserciones, lo que confirma que la migración preservó el comportamiento observable. Se agregaron 11 pruebas unitarias de la jerarquía de clases (herencia, polimorfismo, encapsulamiento, objetos de valor y errores) y una prueba de los endpoints del frontend que verifica el contrato JSON y el escape del JSON incrustado en la página (Tabla~\ref{tab:pruebas}).
+
+\begin{table}[!t]
+\centering
+\caption{Resultado de \texttt{npm test} (Node.js 22.17)}
+\label{tab:pruebas}
+\footnotesize
+\begin{tabular}{@{}lrr@{}}
+\toprule
+\textbf{Archivo} & \textbf{Pruebas} & \textbf{Aprobadas} \\
+\midrule
+tests/api.test.ts (integración API) & 26 & 26 \\
+tests/web.test.ts (vistas y /datos) & 4 & 4 \\
+tests/dominio.test.ts (unitarias POO) & 11 & 11 \\
+\midrule
+\textbf{Total} & \textbf{41} & \textbf{41} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Métricas de la migración}
+La Tabla~\ref{tab:metricas} compara ambas versiones. El aumento de líneas se explica por las anotaciones de tipo, las interfaces y la documentación TSDoc, y por el nuevo frontend; a cambio, la lógica duplicada de repositorios y servicios se eliminó mediante herencia. El rendimiento (RNF-05) se midió con 10\,000 gastos en la base de datos: el percentil 95 fue de 6,2\,ms al listar gastos, 3,6\,ms al registrarlos y 8,7\,ms en el resumen mensual, muy por debajo del objetivo de 300\,ms.
+
+\begin{table}[!t]
+\centering
+\caption{Comparación entre la versión JavaScript y la TypeScript}
+\label{tab:metricas}
+\footnotesize
+\begin{tabularx}{\columnwidth}{@{}Xrr@{}}
+\toprule
+\textbf{Métrica} & \textbf{JS} & \textbf{TS} \\
+\midrule
+Archivos del backend (\texttt{src/}) & 25 & 46 \\
+Líneas del backend (con comentarios) & 1\,432 & 2\,844 \\
+Archivos / líneas del frontend & 1 / 25 & 12 / 612 \\
+Clases (backend + frontend) & 1 & 47 \\
+Interfaces / alias de tipo / \texttt{enum} & 0 / 0 / 0 & 62 / 29 / 3 \\
+Pruebas automatizadas & 29 & 41 \\
+Errores de tipos al compilar (\texttt{tsc}) & --- & 0 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Ventajas observadas de TypeScript}
+\begin{itemize}
+\item \textbf{Detección temprana}: errores de forma de datos, parámetros y nulos aparecen al compilar y en el editor, no en producción.
+\item \textbf{Contratos únicos}: \texttt{contratos.d.ts} y \texttt{z.infer} mantienen sincronizados API, servidor y cliente.
+\item \textbf{Diseño orientado a objetos verificable}: \texttt{abstract}, \texttt{implements}, \texttt{override} y los genéricos convierten el diagrama de clases en código que el compilador hace cumplir \cite{gamma1994}.
+\item \textbf{Mantenibilidad}: el autocompletado y la refactorización segura reducen el costo de cambio; los \texttt{Record<Enum, \ldots>} obligan a cubrir cada valor nuevo.
+\item \textbf{Sin costo en ejecución}: el JavaScript generado es equivalente al escrito a mano y el rendimiento no cambió.
+\end{itemize}
+
+% =====================================================================
+\section{Conclusiones}\label{sec:conclusiones}
+La migración de FamiFinanzas a TypeScript se completó en el backend y en el frontend sin alterar el comportamiento de la API, como lo demuestran las 29 pruebas originales que siguen pasando. El cambio no fue solo sintáctico: el modelo pasó de objetos literales a una jerarquía de clases con interfaces, clases abstractas, genéricos y encapsulamiento real, que coincide con el diagrama de clases y que el compilador hace cumplir. La configuración estricta y el uso de \texttt{import type} producen, tras la transpilación, JavaScript ES2022 limpio. En el cliente, TypeScript permitió construir componentes reutilizables que consumen la API con contratos compartidos y resultados tipados, lo que incorporó nuevas funcionalidades (simulación de presupuesto y gráfico) con menor riesgo. La principal lección es que una migración incremental respaldada por pruebas existentes permite adoptar TypeScript de forma segura, y que su mayor beneficio aparece cuando se aprovechan los tipos para expresar el diseño y no solo para anotar variables.
+
+\begin{thebibliography}{00}
+\bibitem{tshandbook} Microsoft, ``The TypeScript Handbook,'' 2025. [En línea]. Disponible: \url{https://www.typescriptlang.org/docs/handbook/intro.html}
+\bibitem{bierman2014} G. Bierman, M. Abadi y M. Torgersen, ``Understanding TypeScript,'' en \emph{Proc. ECOOP 2014}, LNCS, vol.~8586, Springer, 2014, pp.~257--281.
+\bibitem{gao2017} Z. Gao, C. Bird y E. T. Barr, ``To type or not to type: Quantifying detectable bugs in JavaScript,'' en \emph{Proc. 39th Int. Conf. Software Engineering (ICSE)}, 2017, pp.~758--769.
+\bibitem{tsconfig} Microsoft, ``TSConfig Reference,'' 2025. [En línea]. Disponible: \url{https://www.typescriptlang.org/tsconfig}
+\bibitem{rfc7519} M. Jones, J. Bradley y N. Sakimura, ``JSON Web Token (JWT),'' IETF, RFC 7519, may. 2015.
+\bibitem{nodesqlite} OpenJS Foundation, ``SQLite --- Node.js v22 Documentation.'' [En línea]. Disponible: \url{https://nodejs.org/docs/latest-v22.x/api/sqlite.html}
+\bibitem{zod} C. McDonnell, ``Zod: TypeScript-first schema validation with static type inference.'' [En línea]. Disponible: \url{https://zod.dev}
+\bibitem{fowler2002} M. Fowler, \emph{Patterns of Enterprise Application Architecture}. Boston, MA, EE.~UU.: Addison-Wesley, 2002.
+\bibitem{gamma1994} E. Gamma, R. Helm, R. Johnson y J. Vlissides, \emph{Design Patterns: Elements of Reusable Object-Oriented Software}. Reading, MA, EE.~UU.: Addison-Wesley, 1994.
+\bibitem{ecma262} Ecma International, \emph{ECMA-262: ECMAScript 2022 Language Specification}, 13.\textsuperscript{a} ed., jun. 2022.
+\bibitem{mdnmodules} Mozilla, ``JavaScript modules,'' MDN Web Docs. [En línea]. Disponible: \url{https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Modules}
+\bibitem{uml251} Object Management Group, \emph{OMG Unified Modeling Language (OMG UML), Version 2.5.1}, formal/17-12-05, dic. 2017.
+\end{thebibliography}
+
+\end{document}

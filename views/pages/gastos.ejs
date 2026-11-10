@@ -1,0 +1,59 @@
+<%- include('../partials/header') %>
+<div class="encabezado">
+  <h1>Gastos</h1>
+  <a class="boton boton-sec" href="/gastos/exportar?<%= qs %>">⬇ Exportar CSV</a>
+</div>
+
+<details class="panel" <%= resultado.total === 0 && !qs ? 'open' : '' %>>
+  <summary><h2>+ Registrar gasto</h2></summary>
+  <form method="post" action="/gastos" class="formulario" data-validar data-simulador>
+    <%- include('../partials/form-gasto', { g: {}, categorias: categorias.filter(c => c.activo) }) %>
+    <button class="boton" type="submit">Guardar gasto</button>
+  </form>
+</details>
+
+<form class="panel filtros" method="get" action="/gastos">
+  <label>Desde <input type="date" name="desde" value="<%= filtro.desde ?? '' %>"></label>
+  <label>Hasta <input type="date" name="hasta" value="<%= filtro.hasta ?? '' %>"></label>
+  <label>Categoría
+    <select name="categoriaId"><option value="">Todas</option>
+      <% categorias.forEach(c => { %><option value="<%= c.id %>" <%= filtro.categoriaId === c.id ? 'selected' : '' %>><%= c.nombre %><%= c.activo ? '' : ' (inactiva)' %></option><% }) %>
+    </select>
+  </label>
+  <label>Miembro
+    <select name="usuarioId"><option value="">Todos</option>
+      <% miembros.forEach(m => { %><option value="<%= m.id %>" <%= filtro.usuarioId === m.id ? 'selected' : '' %>><%= m.nombre %></option><% }) %>
+    </select>
+  </label>
+  <div class="acciones"><button class="boton" type="submit">Filtrar</button><a class="boton boton-sec" href="/gastos">Limpiar</a></div>
+</form>
+
+<section class="panel">
+  <p class="resumen-lista"><strong><%= resultado.paginacion.total %></strong> gastos · Total <strong><%= moneda(resultado.suma) %></strong></p>
+  <div class="tabla-scroll">
+  <table class="tabla" data-ordenable>
+    <thead><tr><th data-tipo="fecha">Fecha</th><th data-tipo="texto">Categoría</th><th data-tipo="texto">Descripción</th><th data-tipo="texto">Método</th><th data-tipo="texto">Registró</th><th class="num" data-tipo="numero">Monto</th><th></th></tr></thead>
+    <tbody>
+      <% if (!resultado.datos.length) { %><tr><td colspan="7" class="vacio">No hay gastos con estos filtros.</td></tr><% } %>
+      <% resultado.datos.forEach(g => { const puede = usuario.rol === 'ADMIN' || g.usuario.id === usuario.id; %>
+        <tr>
+          <td><%= g.fecha %></td>
+          <td><i class="punto" style="--c: <%= g.categoria.color %>"></i><%= g.categoria.nombre %></td>
+          <td><%= g.descripcion %></td>
+          <td><%= NOMBRES_METODO[g.metodoPago] %></td>
+          <td><%= g.usuario.nombre %></td>
+          <td class="num" data-valor="<%= g.monto %>"><%= moneda(g.monto) %></td>
+          <td class="acciones-fila">
+            <% if (puede) { %>
+              <a href="/gastos/<%= g.id %>/editar" title="Editar">✏️</a>
+              <form method="post" action="/gastos/<%= g.id %>/eliminar" data-confirmar="¿Eliminar este gasto?"><button class="enlace" title="Eliminar">🗑️</button></form>
+            <% } %>
+          </td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+  </div>
+  <%- include('../partials/paginacion') %>
+</section>
+<%- include('../partials/footer') %>

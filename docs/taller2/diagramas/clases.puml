@@ -1,0 +1,119 @@
+@startuml clases
+!pragma layout smetana
+title FamiFinanzas — Diagrama de clases del dominio
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam classAttributeIconSize 0
+skinparam classBackgroundColor #FFFFFF
+skinparam classBorderColor #0F766E
+skinparam classHeaderBackgroundColor #F0FDFA
+hide empty methods
+
+enum Rol {
+  ADMIN
+  MIEMBRO
+}
+
+enum MetodoPago {
+  EFECTIVO
+  TARJETA_DEBITO
+  TARJETA_CREDITO
+  TRANSFERENCIA
+}
+
+enum EstadoPresupuesto {
+  OK
+  ALERTA
+  EXCEDIDO
+  SIN_PRESUPUESTO
+}
+
+class Familia {
+  - id : int
+  - nombre : String
+  - moneda : String = "COP"
+  - creadoEn : DateTime
+  + registrarMiembro(u : Usuario) : void
+  + resumenMensual(mes : String) : ResumenMensual
+}
+
+class Usuario {
+  - id : int
+  - nombre : String
+  - email : String {unique}
+  - passwordHash : String
+  - rol : Rol
+  - activo : boolean
+  - creadoEn : DateTime
+  + autenticar(password : String) : boolean
+  + cambiarPassword(actual : String, nueva : String) : void
+  + esAdmin() : boolean
+}
+
+abstract class Movimiento {
+  # id : int
+  # monto : decimal {monto > 0}
+  # fecha : Date
+  # descripcion : String
+  # creadoEn : DateTime
+  + puedeModificar(u : Usuario) : boolean
+}
+
+class Gasto {
+  - metodoPago : MetodoPago
+}
+
+class Ingreso {
+  - fuente : String
+}
+
+class Categoria {
+  - id : int
+  - nombre : String
+  - color : String
+  - activo : boolean
+  + tieneGastos() : boolean
+}
+
+class Presupuesto {
+  - id : int
+  - mes : String <<AAAA-MM>>
+  - montoLimite : decimal
+  + gastado() : decimal
+  + porcentajeEjecutado() : decimal
+  + estado() : EstadoPresupuesto
+}
+
+class ResumenMensual <<calculado>> {
+  - mes : String
+  - totalIngresos : decimal
+  - totalGastos : decimal
+  - balance : decimal
+  - porCategoria : List<TotalCategoria>
+  - porMiembro : List<TotalMiembro>
+  - alertas : List<Alerta>
+}
+
+class Alerta <<calculado>> {
+  - categoria : String
+  - estado : EstadoPresupuesto
+  - porcentaje : decimal
+  - mensaje : String
+}
+
+Movimiento <|-- Gasto
+Movimiento <|-- Ingreso
+
+Familia "1" *-- "1..*" Usuario : tiene >
+Familia "1" *-- "0..*" Categoria : define >
+Familia "1" *-- "0..*" Movimiento : registra >
+Familia "1" *-- "0..*" Presupuesto : planifica >
+Usuario "1" -- "0..*" Movimiento : registró >
+Gasto "0..*" --> "1" Categoria : clasificado en
+Presupuesto "0..*" --> "1" Categoria : limita
+Usuario --> Rol
+Gasto --> MetodoPago
+Presupuesto ..> EstadoPresupuesto
+ResumenMensual "1" o-- "0..*" Alerta
+Familia ..> ResumenMensual : genera
+@enduml

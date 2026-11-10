@@ -1,0 +1,47 @@
+<%- include('../partials/header') %>
+<h1>Ingresos</h1>
+<section class="panel">
+  <h2>Registrar ingreso</h2>
+  <form method="post" action="/ingresos" class="formulario" data-validar>
+    <div class="campos">
+      <label>Monto (COP) <input type="number" name="monto" min="1" step="any" required placeholder="3500000" data-moneda></label>
+      <label>Fecha <input type="date" name="fecha" required value="<%= hoy() %>"></label>
+      <label>Fuente <input type="text" name="fuente" required minlength="2" maxlength="60" list="fuentes" placeholder="Salario">
+        <datalist id="fuentes"><option>Salario</option><option>Honorarios</option><option>Arriendo</option><option>Ventas</option><option>Otro</option></datalist></label>
+      <label>Descripción <input type="text" name="descripcion" maxlength="200"></label>
+    </div>
+    <button class="boton" type="submit">Guardar ingreso</button>
+  </form>
+</section>
+
+<form class="panel filtros" method="get" action="/ingresos">
+  <label>Desde <input type="date" name="desde" value="<%= filtro.desde ?? '' %>"></label>
+  <label>Hasta <input type="date" name="hasta" value="<%= filtro.hasta ?? '' %>"></label>
+  <div class="acciones"><button class="boton" type="submit">Filtrar</button><a class="boton boton-sec" href="/ingresos">Limpiar</a></div>
+</form>
+
+<section class="panel">
+  <p class="resumen-lista"><strong><%= resultado.paginacion.total %></strong> ingresos · Total <strong><%= moneda(resultado.suma) %></strong></p>
+  <div class="tabla-scroll">
+  <table class="tabla" data-ordenable>
+    <thead><tr><th data-tipo="fecha">Fecha</th><th data-tipo="texto">Fuente</th><th data-tipo="texto">Descripción</th><th data-tipo="texto">Registró</th><th class="num" data-tipo="numero">Monto</th><th></th></tr></thead>
+    <tbody>
+      <% if (!resultado.datos.length) { %><tr><td colspan="6" class="vacio">No hay ingresos registrados.</td></tr><% } %>
+      <% resultado.datos.forEach(i => { const puede = usuario.rol === 'ADMIN' || i.usuario.id === usuario.id; %>
+        <tr>
+          <td><%= i.fecha %></td><td><%= i.fuente %></td><td><%= i.descripcion %></td><td><%= i.usuario.nombre %></td>
+          <td class="num positivo" data-valor="<%= i.monto %>"><%= moneda(i.monto) %></td>
+          <td class="acciones-fila">
+            <% if (puede) { %>
+              <a href="/ingresos/<%= i.id %>/editar" title="Editar">✏️</a>
+              <form method="post" action="/ingresos/<%= i.id %>/eliminar" data-confirmar="¿Eliminar este ingreso?"><button class="enlace" title="Eliminar">🗑️</button></form>
+            <% } %>
+          </td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+  </div>
+  <%- include('../partials/paginacion') %>
+</section>
+<%- include('../partials/footer') %>

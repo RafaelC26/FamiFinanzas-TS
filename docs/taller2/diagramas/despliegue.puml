@@ -1,0 +1,47 @@
+@startuml despliegue
+!pragma layout smetana
+title FamiFinanzas — Diagrama de despliegue
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam nodeBackgroundColor #F0FDFA
+skinparam nodeBorderColor #0F766E
+skinparam artifactBackgroundColor #FFFFFF
+skinparam artifactBorderColor #64748B
+
+node "Dispositivo del usuario\n(PC / celular)" as cliente <<device>> {
+  node "Navegador web\n(Chrome, Firefox, Safari)" as navegador <<execution environment>> {
+    artifact "Páginas HTML + CSS + JS\n(generadas con EJS)" as paginas
+    artifact "Cookie ff_token\n(JWT, httpOnly)" as cookie
+  }
+}
+
+node "Cliente de API\n(Swagger UI / Postman / app externa)" as clienteApi <<device>> {
+  artifact "Authorization: Bearer <JWT>" as bearer
+}
+
+node "Servidor de aplicaciones" as servidor <<device>> {
+  node "Node.js ≥ 22.13" as node <<execution environment>> {
+    artifact "famifinanzas\n(npm start → src/server.js)" as app <<artifact>>
+    component "Express 5\n(Helmet, rate-limit)" as express
+    component "Front-end\n(rutas web + vistas EJS)" as web
+    component "API REST /api/v1\n(controladores)" as api
+    component "Seguridad JWT\n(jsonwebtoken + bcrypt)" as jwt
+    component "Servicios de negocio" as servicios
+    component "Repositorios\n(node:sqlite)" as repos
+    component "Swagger UI\n(/api-docs, OpenAPI 3)" as swagger
+  }
+  database "famifinanzas.db\n(SQLite)" as db <<artifact>>
+}
+
+navegador -- express : HTTPS\n(HTML / formularios)
+clienteApi -- express : HTTPS\n(JSON REST)
+express --> web
+express --> api
+express --> swagger
+web ..> jwt
+api ..> jwt
+web --> servicios
+api --> servicios
+servicios --> repos
+repos --> db : SQL parametrizado
+@enduml

@@ -1,0 +1,28 @@
+<%# Campos compartidos entre "registrar" y "editar" gasto. Requiere: categorias, g (gasto o {}).
+    data-moneda y <output data-simulacion> los usan los componentes TS VistaPreviaMonto y SimuladorPresupuesto. %>
+<div class="campos">
+  <label>Monto (COP)
+    <input type="number" name="monto" min="1" step="any" required inputmode="decimal" data-moneda value="<%= g.monto ?? '' %>" placeholder="85000">
+  </label>
+  <label>Fecha
+    <input type="date" name="fecha" required value="<%= g.fecha ?? hoy() %>">
+  </label>
+  <label>Categoría
+    <select name="categoriaId" required>
+      <% categorias.forEach(c => { %>
+        <option value="<%= c.id %>" <%= g.categoria?.id === c.id ? 'selected' : '' %>><%= c.nombre %></option>
+      <% }) %>
+    </select>
+  </label>
+  <label>Método de pago
+    <select name="metodoPago" required>
+      <% METODOS_PAGO.forEach(m => { %>
+        <option value="<%= m %>" <%= g.metodoPago === m ? 'selected' : '' %>><%= NOMBRES_METODO[m] %></option>
+      <% }) %>
+    </select>
+  </label>
+  <label class="ancho">Descripción
+    <input type="text" name="descripcion" maxlength="200" value="<%= g.descripcion ?? '' %>" placeholder="Ej: mercado de la semana">
+  </label>
+</div>
+<output class="simulacion" data-simulacion aria-live="polite" hidden></output>
