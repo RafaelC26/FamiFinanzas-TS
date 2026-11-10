@@ -13,6 +13,8 @@ import { rutaProyecto } from './utils/rutas.js';
 export function crearApp(): Express {
   const app = express();
   app.disable('x-powered-by');
+  // En Vercel la app corre detrás del proxy de la plataforma: confiar en X-Forwarded-For (rate-limit por IP real).
+  if (process.env['VERCEL']) app.set('trust proxy', 1);
   app.set('view engine', 'ejs');
   app.set('views', rutaProyecto('views'));
 
