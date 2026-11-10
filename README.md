@@ -7,7 +7,7 @@ Migración a **TypeScript** de la WebApp de gestión de gastos, ingresos y presu
 Taller 2 (Node.js + Express + EJS + JWT + Swagger + SQLite). Se migraron el **backend** (`src/*.ts → dist/*.js`)
 y el **frontend** (`client/*.ts → public/js/*.js`), y el modelo se reorganizó en una **jerarquía de clases**.
 
-📄 Informe IEEE (LaTeX): [docs/informe/informe.tex](docs/informe/informe.tex) · Documento del Taller 2: [docs/taller2/](docs/taller2/)
+📄 **Informe (PDF, formato IEEE): [Informe-Taller-TypeScript.pdf](Informe-Taller-TypeScript.pdf)** · Fuente LaTeX: [docs/informe/](docs/informe/) · Documento del Taller 2: [docs/taller2/](docs/taller2/)
 
 ## Requisitos
 - Node.js **22.13 o superior** (SQLite integrado, no requiere instalar base de datos).
