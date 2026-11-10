@@ -10,3 +10,6 @@ docs/informe/*.log
 docs/informe/*.out
 docs/informe/*.bbl
 docs/informe/*.blg
+
+.vercel
+.env*

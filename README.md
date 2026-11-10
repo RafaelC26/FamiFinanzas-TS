@@ -7,6 +7,8 @@ Migración a **TypeScript** de la WebApp de gestión de gastos, ingresos y presu
 Taller 2 (Node.js + Express + EJS + JWT + Swagger + SQLite). Se migraron el **backend** (`src/*.ts → dist/*.js`)
 y el **frontend** (`client/*.ts → public/js/*.js`), y el modelo se reorganizó en una **jerarquía de clases**.
 
+🌐 **Demo en línea:** https://famifinanzas-ts.vercel.app (usuario `admin@famifinanzas.co` / `Admin123`; los datos se reinician periódicamente)
+
 📄 **Informe (PDF, formato IEEE): [Informe-Taller-TypeScript.pdf](Informe-Taller-TypeScript.pdf)** · Fuente LaTeX: [docs/informe/](docs/informe/) · Documento del Taller 2: [docs/taller2/](docs/taller2/)
 
 ## Requisitos
