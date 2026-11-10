@@ -1,2 +1,2 @@
 URL del repositorio del proyecto (Taller TypeScript - FamiFinanzas):
-PENDIENTE: reemplazar por la URL de GitHub despues de publicar el repositorio
+https://github.com/RafaelC26/FamiFinanzas-TS
